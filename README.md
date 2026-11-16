@@ -1,6 +1,6 @@
 # MeTube NFO
 
-![Build Status](https://github.com/tool12/metube-nfo/actions/workflows/main.yml/badge.svg)
+![Build Status](https://github.com/tool12/metube-nfo/actions/workflows/nfo.yml/badge.svg)
 
 Fork of [MeTube](https://github.com/alexta69/metube) with automatic NFO metadata and cover artwork generation, powered by IMVDb with fallback to original video metadata. Video downloads are organized by artist. See the [NFO guide](https://github.com/tool12/metube-nfo/blob/master/docs/nfo.md) and [TrueNAS installation](https://github.com/tool12/metube-nfo/blob/master/docs/truenas.md).
 

@@ -111,7 +111,7 @@ The fork keeps the upstream history. Integrate upstream changes, preserving the
 fork's GHCR workflow, then run frontend lint/build/tests and backend tests as in
 `AGENTS.md`. Metadata lookup and file generation have focused offline tests.
 
-The GitHub workflow builds Linux amd64 after tests, runs a module smoke test
+The separate `.github/workflows/nfo.yml` builds Linux amd64 after tests, runs a module smoke test
 inside the built image, then publishes `latest` and `sha-<full-commit>` from
 `master`. Keep the commit tag for reproducible deployment or rollback. ARM64
 publication is not configured for this fork's initial TrueNAS deployment.

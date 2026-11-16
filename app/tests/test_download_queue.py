@@ -2418,4 +2418,3 @@ async def test_artist_folders_keep_playlist_items_in_the_shared_artist_layout(dq
     download = dq.pending.get(url)
     assert download.artist_folders is True
     assert download.output_template == dq_env.OUTPUT_TEMPLATE
-

@@ -1,0 +1,104 @@
+name: Build and publish MeTube NFO
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: metube-nfo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          package_json_file: ui/package.json
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - name: Install frontend dependencies
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+      - name: Lint frontend
+        working-directory: ui
+        run: pnpm run lint
+      - name: Build frontend
+        working-directory: ui
+        run: pnpm run build
+      - name: Test frontend
+        working-directory: ui
+        run: pnpm exec ng test --watch=false
+        env:
+          CI: true
+      - name: Set up uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: '3.14'
+      - name: Install backend dependencies
+        run: uv sync --frozen --group dev
+      - name: Compile backend
+        run: uv run python -m compileall -q app tools
+      - name: Test backend
+        run: uv run pytest app/tests/
+
+  container:
+    needs: quality-checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build Linux amd64 image
+        env:
+          REVISION: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          docker build \
+            --build-arg "VERSION=nfo-${REVISION}" \
+            --label "org.opencontainers.image.source=https://github.com/${REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${REVISION}" \
+            --label "org.opencontainers.image.licenses=AGPL-3.0-only" \
+            --tag metube-nfo:ci .
+      - name: Verify modules inside the built image
+        run: |
+          docker run --rm --entrypoint python3 -e PYTHONPATH=/app/app metube-nfo:ci \
+            -c "import nfo_metadata, nfo_backfill; assert nfo_metadata.make_nfo({'title': 'Smoke test'}).tag == 'movie'"
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish commit tag and latest
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+        env:
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          IMAGE="ghcr.io/${REPOSITORY,,}"
+          docker tag metube-nfo:ci "${IMAGE}:sha-${REVISION}"
+          docker tag metube-nfo:ci "${IMAGE}:latest"
+          docker push "${IMAGE}:sha-${REVISION}"
+          docker push "${IMAGE}:latest"
+          {
+            echo '### Published MeTube NFO image'
+            echo "- \`${IMAGE}:sha-${REVISION}\`"
+            echo "- \`${IMAGE}:latest\`"
+            echo 'Platform: linux/amd64. Keep the commit tag to reproduce or roll back an installation.'
+          } >> "$GITHUB_STEP_SUMMARY"
