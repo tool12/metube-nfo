@@ -43,6 +43,8 @@ def dq_env():
         # Explicit: an unset attribute on a MagicMock is truthy, which would
         # make validate_url bypass every SSRF check it is asked to run.
         cfg.ALLOW_PRIVATE_ADDRESSES = False
+        # Legacy template tests exercise the layout with artist grouping off.
+        cfg.ARTIST_FOLDERS = False
         cfg.YTDL_OPTIONS = {}
         cfg.YTDL_OPTIONS_PRESETS = {}
         cfg.CUSTOM_DIRS = True
