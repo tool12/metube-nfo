@@ -9,6 +9,7 @@ on:
 
 jobs:
   quality-checks:
+    if: github.repository == 'alexta69/metube'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

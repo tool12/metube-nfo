@@ -23,6 +23,9 @@ export interface AddDownloadPayload {
   playlistItemLimit: number;
   autoStart: boolean;
   splitByChapters: boolean;
+  nfoImvdbId?: string;
+  nfoProfile?: string;
+  nfoPoster?: boolean;
   sponsorblock: boolean;
   audioTags: string;
   chapterTemplate: string;
@@ -184,6 +187,9 @@ export class DownloadsService {
       playlist_item_limit: payload.playlistItemLimit,
       auto_start: payload.autoStart,
       split_by_chapters: payload.splitByChapters,
+      nfo_profile: payload.downloadType === 'video' ? (payload.nfoProfile ?? 'none') : 'none',
+      nfo_poster: payload.nfoPoster ?? true,
+      nfo_imvdb_id: payload.downloadType === 'video' ? (payload.nfoImvdbId ?? '') : '',
       sponsorblock: payload.sponsorblock,
       audio_tags: payload.audioTags,
       chapter_template: payload.chapterTemplate,

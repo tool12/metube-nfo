@@ -55,6 +55,10 @@ CATALOG: dict = {
     'download_type': _choice('video', [
         {
             'id': 'video',
+            'nfo_profile': _choice('none', _options(
+                ('none', 'No generar'), ('kodi', 'Kodi'),
+                ('jellyfin', 'Jellyfin'), ('emby', 'Emby'),
+            )),
             'text': 'Video',
             'codec': _choice('auto', _options(
                 ('auto', 'Auto'),

@@ -266,6 +266,34 @@
             </div>
           </div>
           }
+          @if (currentType()?.nfo_profile) {
+          <div class="col-12 mt-3">
+            <div class="input-group">
+              <label class="input-group-text" for="nfo-profile">Metadatos NFO</label>
+              <select id="nfo-profile" name="nfoProfile" class="form-select"
+                [(ngModel)]="nfoProfile" (ngModelChange)="nfoChanged()"
+                [disabled]="addInProgress || subscribeInProgress || downloads.loading">
+                @for (profile of nfoProfiles; track profile.id) {
+                  <option [value]="profile.id">{{ profile.text }}</option>
+                }
+              </select>
+            </div>
+            @if (nfoProfile !== 'none') {
+              <div class="form-check mt-2">
+                <input id="nfo-poster" name="nfoPoster" class="form-check-input" type="checkbox"
+                  [(ngModel)]="nfoPoster" (ngModelChange)="nfoChanged()"
+                  [disabled]="addInProgress || subscribeInProgress || downloads.loading">
+                <label class="form-check-label" for="nfo-poster">Guardar carátula del video</label>
+              </div>
+              <label for="nfo-imvdb-id" class="form-label mt-2">ID o enlace del videoclip en IMVDb (opcional)</label>
+              <input id="nfo-imvdb-id" name="nfoImvdbId" class="form-control" type="text"
+                placeholder="Automático si se deja vacío"
+                [(ngModel)]="nfoImvdbId"
+                [disabled]="addInProgress || subscribeInProgress || downloads.loading">
+              <small class="text-body-secondary">Se busca la ficha pública de IMVDb y se consulta su API. Solo se usa si coincide el enlace de YouTube; si no, se genera un NFO genérico. La selección de NFO y carátula se recuerda.</small>
+            }
+          </div>
+          }
           @if (currentType()?.subtitle_language) {
           <div [class]="optionColumnClass()">
             <div class="input-group">

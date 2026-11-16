@@ -1,5 +1,13 @@
 # Agent Guidelines
 
+## Fork scope
+
+In `tool12/metube-nfo`, the user has explicitly authorized optional IMVDb
+lookups, NFO sidecars, artist folders at download time, and a separate dry-run
+backfill script. Keep these adapters isolated and preserve the original
+download on metadata failures. The upstream scope policy below describes
+MeTube upstream; the remaining engineering and security conventions apply.
+
 ## Project scope — read this before planning a feature
 
 MeTube's contract is: give it a URL, it runs yt-dlp well, and correct files appear.

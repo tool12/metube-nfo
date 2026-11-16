@@ -43,6 +43,8 @@ def dq_env():
         # Explicit: an unset attribute on a MagicMock is truthy, which would
         # make validate_url bypass every SSRF check it is asked to run.
         cfg.ALLOW_PRIVATE_ADDRESSES = False
+        # Legacy template tests exercise the layout with artist grouping off.
+        cfg.ARTIST_FOLDERS = False
         cfg.YTDL_OPTIONS = {}
         cfg.YTDL_OPTIONS_PRESETS = {}
         cfg.CUSTOM_DIRS = True
@@ -2403,3 +2405,16 @@ def test_record_from_an_old_version_gets_every_default():
         assert getattr(info, name) == default, name
     info.subtitle_files.append("x")
     assert _DOWNLOAD_INFO_DEFAULTS["subtitle_files"] == []
+@pytest.mark.asyncio
+async def test_artist_folders_keep_playlist_items_in_the_shared_artist_layout(dq_env):
+    dq_env.ARTIST_FOLDERS = True
+    dq_env.OUTPUT_TEMPLATE_PLAYLIST = 'Playlist/%(title)s.%(ext)s'
+    dq = DownloadQueue(dq_env, AsyncMock())
+    url = 'https://example.com/watch?v=artist'
+    entry = {'_type': 'video', 'id': 'artist', 'title': 'Song', 'url': url,
+             'webpage_url': url, 'playlist_index': 1, 'playlist_title': 'My playlist'}
+    result = await dq.add_entry(entry, DownloadOptions(auto_start=False))
+    assert result['status'] == 'ok'
+    download = dq.pending.get(url)
+    assert download.artist_folders is True
+    assert download.output_template == dq_env.OUTPUT_TEMPLATE

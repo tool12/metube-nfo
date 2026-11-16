@@ -23,6 +23,7 @@ import bg_tasks
 import format_catalog
 from ytdl import DownloadQueueNotifier, DownloadQueue, Download
 from download_options import DownloadOptions
+from nfo_metadata import imvdb_video_path
 from subscriptions import SubscriptionManager, SubscriptionNotifier, SubscriptionInfo, browse_playlist, coerce_optional_bool
 from yt_dlp.version import __version__ as yt_dlp_version
 
@@ -92,6 +93,10 @@ class Config:
         'SUBSCRIPTION_SCAN_PLAYLIST_END': '50',
         'SUBSCRIPTION_MAX_SEEN_IDS': '50000',
         'CLEAR_COMPLETED_AFTER': '0',
+        'IMVDB_APP_KEY': '',
+        'IMVDB_SEARCH_ENABLED': 'false',
+        'IMVDB_WEB_SEARCH_ENABLED': 'true',
+        'ARTIST_FOLDERS': 'true',
         'YTDL_OPTIONS': '{}',
         'YTDL_OPTIONS_FILE': '',
         'YTDL_OPTIONS_PRESETS': '{}',
@@ -113,7 +118,7 @@ class Config:
         'YTDL_NIGHTLY_UPDATE_TIME': '',
     }
 
-    _BOOLEAN = ('DOWNLOAD_DIRS_INDEXABLE', 'CUSTOM_DIRS', 'CREATE_CUSTOM_DIRS', 'HTTPS', 'ENABLE_ACCESSLOG', 'ALLOW_YTDL_OPTIONS_OVERRIDES', 'ALLOW_PRIVATE_ADDRESSES')
+    _BOOLEAN = ('DOWNLOAD_DIRS_INDEXABLE', 'CUSTOM_DIRS', 'CREATE_CUSTOM_DIRS', 'HTTPS', 'ENABLE_ACCESSLOG', 'ALLOW_YTDL_OPTIONS_OVERRIDES', 'ALLOW_PRIVATE_ADDRESSES', 'ARTIST_FOLDERS')
 
     def __init__(self):
         for k, v in self._DEFAULTS.items():
@@ -983,6 +988,17 @@ def parse_download_options(post: dict) -> tuple[str, DownloadOptions]:
     playlist_item_limit = _playlist_item_limit_field(post)
     auto_start = _bool_field(post, 'auto_start', True)
     split_by_chapters = _bool_field(post, 'split_by_chapters', False)
+    nfo_profile = str(post.get('nfo_profile') or 'none').strip().lower()
+    nfo_poster = _bool_field(post, 'nfo_poster', True)
+    nfo_imvdb_id = _str_field(post, 'nfo_imvdb_id', '').strip()
+    numeric_imvdb_id = nfo_imvdb_id.isascii() and nfo_imvdb_id.isdecimal() and len(nfo_imvdb_id) <= 20
+    if nfo_imvdb_id and not numeric_imvdb_id and imvdb_video_path(nfo_imvdb_id) is None:
+        raise web.HTTPBadRequest(reason='nfo_imvdb_id must be an IMVDb video ID or HTTPS video page')
+    nfo_choice = format_catalog.download_type('video')['nfo_profile']
+    if nfo_profile not in {item['id'] for item in nfo_choice['options']}:
+        raise web.HTTPBadRequest(reason='Invalid nfo_profile')
+    if download_type != 'video':
+        nfo_profile = 'none'
     sponsorblock = _bool_field(post, 'sponsorblock', False)
     audio_tags = str(post.get('audio_tags') or format_catalog.choice_default('audio', 'audio_tags')).strip().lower()
     chapter_template = _str_field(post, 'chapter_template', config.OUTPUT_TEMPLATE_CHAPTER)
@@ -1065,6 +1081,9 @@ def parse_download_options(post: dict) -> tuple[str, DownloadOptions]:
         playlist_item_limit=playlist_item_limit,
         auto_start=auto_start,
         split_by_chapters=split_by_chapters,
+        nfo_imvdb_id=nfo_imvdb_id,
+        nfo_profile=nfo_profile,
+        nfo_poster=nfo_poster,
         sponsorblock=sponsorblock,
         audio_tags=audio_tags,
         chapter_template=chapter_template,
@@ -1197,6 +1216,8 @@ async def subscribe(request):
         subtitle_mode=options.subtitle_mode,
         ytdl_options_presets=list(options.ytdl_options_presets),
         ytdl_options_overrides=options.ytdl_options_overrides,
+        nfo_profile=options.nfo_profile,
+        nfo_poster=options.nfo_poster,
         sponsorblock=options.sponsorblock,
         audio_tags=options.audio_tags,
         title_regex=post.get('title_regex'),

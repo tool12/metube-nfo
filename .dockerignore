@@ -2,3 +2,16 @@
 .venv
 ui/.angular
 ui/node_modules
+.venv-nfo
+.pnpm-store
+.nfo-baseline
+docs
+*.patch
+*tests.txt
+*diagnostic.txt
+local-nfo-backup
+.env
+.env.*
+!*.example
+*.tar.gz
+*.sha256

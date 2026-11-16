@@ -53,3 +53,13 @@ Thumbs.db
 
 __pycache__
 .venv
+# Local development and private deployment configuration
+.venv-nfo/
+.pnpm-store/
+.nfo-baseline/
+local-nfo-backup/
+.env
+.env.*
+!*.example
+metube-truenas-test.tar.gz
+metube-truenas-test.tar.gz.sha256
