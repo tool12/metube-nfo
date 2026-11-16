@@ -94,6 +94,17 @@ describe('DownloadsService', () => {
     req.flush({ status: 'ok' });
   });
 
+  it('add() carries NFO selection and disables it for audio', () => {
+    service.add({ ...basePayload(), nfoProfile: 'kodi', nfoPoster: false }).subscribe();
+    const video = httpMock.expectOne('add');
+    expect(video.request.body).toEqual(expect.objectContaining({ nfo_profile: 'kodi', nfo_poster: false }));
+    video.flush({ status: 'ok' });
+    service.add({ ...basePayload(), downloadType: 'audio', nfoProfile: 'kodi' }).subscribe();
+    const audio = httpMock.expectOne('add');
+    expect(audio.request.body.nfo_profile).toBe('none');
+    audio.flush({ status: 'ok' });
+  });
+
   it('add() sends clip_start and clip_end when set', () => {
     service
       .add({

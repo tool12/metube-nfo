@@ -336,6 +336,8 @@ class SubscriptionInfo:
     auto_start: bool = True
     playlist_item_limit: int = 0
     split_by_chapters: bool = False
+    nfo_profile: str = "none"
+    nfo_poster: bool = True
     sponsorblock: bool = False
     audio_tags: str = "with_cover"
     chapter_template: str = ""
@@ -379,6 +381,8 @@ class SubscriptionInfo:
             ytdl_options_overrides=self.ytdl_options_overrides,
             clip_start=self.clip_start,
             clip_end=self.clip_end,
+            nfo_profile=self.nfo_profile,
+            nfo_poster=self.nfo_poster,
             sponsorblock=self.sponsorblock,
             audio_tags=self.audio_tags,
         )
@@ -421,6 +425,8 @@ def _subscription_to_record(sub: SubscriptionInfo) -> dict[str, Any]:
         "auto_start": sub.auto_start,
         "playlist_item_limit": sub.playlist_item_limit,
         "split_by_chapters": sub.split_by_chapters,
+        "nfo_profile": sub.nfo_profile,
+        "nfo_poster": sub.nfo_poster,
         "sponsorblock": sub.sponsorblock,
         "audio_tags": sub.audio_tags,
         "chapter_template": sub.chapter_template,
@@ -773,6 +779,8 @@ class SubscriptionManager:
         subtitle_mode: str,
         ytdl_options_presets: Optional[list[str]] = None,
         ytdl_options_overrides: Optional[dict[str, Any]] = None,
+        nfo_profile: str = "none",
+        nfo_poster: bool = True,
         sponsorblock: bool = False,
         audio_tags: str = "with_cover",
         title_regex: Any = None,
@@ -869,6 +877,8 @@ class SubscriptionManager:
                 auto_start=bool(auto_start),
                 playlist_item_limit=int(playlist_item_limit),
                 split_by_chapters=bool(split_by_chapters),
+                nfo_profile=nfo_profile,
+                nfo_poster=nfo_poster,
                 sponsorblock=bool(sponsorblock),
                 audio_tags=audio_tags,
                 chapter_template=chapter_template or "",

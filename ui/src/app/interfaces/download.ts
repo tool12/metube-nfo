@@ -11,6 +11,9 @@ export interface Download {
   custom_name_prefix: string;
   playlist_item_limit: number;
   split_by_chapters?: boolean;
+  nfo_imvdb_id?: string;
+  nfo_profile?: string;
+  nfo_poster?: boolean;
   sponsorblock?: boolean;
   audio_tags?: string;
   chapter_template?: string;

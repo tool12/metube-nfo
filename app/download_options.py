@@ -37,6 +37,9 @@ class DownloadOptions:
     ytdl_options_overrides: dict[str, Any] = field(default_factory=dict, repr=False)
     clip_start: Optional[float] = None
     clip_end: Optional[float] = None
+    nfo_imvdb_id: str = ''
+    nfo_profile: str = 'none'
+    nfo_poster: bool = True
     sponsorblock: bool = False
     audio_tags: str = 'with_cover'
     video_password: Optional[str] = field(default=None, repr=False)

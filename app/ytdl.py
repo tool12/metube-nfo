@@ -25,6 +25,7 @@ from dl_formats import get_format, get_opts, merge_ytdl_option_layers
 from download_options import DownloadOptions
 import format_catalog
 from music_metadata import MusicMetadataPreProcessor
+from nfo_metadata import NFOPostProcessor, NFOMetadataPreProcessor
 from datetime import datetime
 from state_store import AtomicJsonStore, from_json_compatible, read_legacy_shelf, to_json_compatible
 from subscriptions import _entry_id, annotate_feed_entry, is_channel_extraction, unexpected_ytdl_error
@@ -569,6 +570,9 @@ _DOWNLOAD_INFO_DEFAULTS: dict[str, Any] = {
     "folder": "",
     "custom_name_prefix": "",
     "playlist_item_limit": 0,
+    "nfo_imvdb_id": "",
+    "nfo_profile": "none",
+    "nfo_poster": True,
     "split_by_chapters": False,
     "sponsorblock": False,
     "audio_tags": "with_cover",
@@ -622,6 +626,9 @@ class DownloadInfo:
         sponsorblock=False,
         audio_tags='with_cover',
         video_password=None,
+        nfo_imvdb_id="",
+        nfo_profile="none",
+        nfo_poster=True,
     ):
         self.id = id if len(custom_name_prefix) == 0 else f'{custom_name_prefix}.{id}'
         self.title = title if len(custom_name_prefix) == 0 else f'{custom_name_prefix}.{title}'
@@ -647,6 +654,9 @@ class DownloadInfo:
         self.entry = _sanitize_entry(entry) if entry is not None else None
         self.playlist_item_limit = playlist_item_limit
         self.split_by_chapters = split_by_chapters
+        self.nfo_imvdb_id = nfo_imvdb_id
+        self.nfo_profile = nfo_profile
+        self.nfo_poster = nfo_poster
         self.sponsorblock = sponsorblock
         self.audio_tags = audio_tags
         self.video_password = video_password
@@ -742,6 +752,9 @@ _PERSISTED_DOWNLOAD_FIELDS = (
     "folder",
     "custom_name_prefix",
     "playlist_item_limit",
+    "nfo_imvdb_id",
+    "nfo_profile",
+    "nfo_poster",
     "split_by_chapters",
     "sponsorblock",
     "audio_tags",
@@ -821,11 +834,12 @@ class Download:
             cls.manager.shutdown()
             cls.manager = None
 
-    def __init__(self, download_dir, temp_dir, output_template, output_template_chapter, quality, format, ytdl_opts, info, allow_private=False, state_dir=None):
+    def __init__(self, download_dir, temp_dir, output_template, output_template_chapter, quality, format, ytdl_opts, info, allow_private=False, state_dir=None, artist_folders=False):
         self._init_state(info)
         self.download_dir = download_dir
         self.temp_dir = temp_dir
         self.state_dir = state_dir
+        self.artist_folders = artist_folders
         self.output_template = output_template
         self.output_template_chapter = output_template_chapter
         self.allow_private = allow_private
@@ -971,6 +985,24 @@ class Download:
             allowed_roots=(self.download_dir, self.temp_dir),
             state_dir=self.state_dir,
         )
+        if (getattr(self.info, 'download_type', '') == 'video'
+                and (getattr(self.info, 'nfo_profile', 'none') != 'none' or self.artist_folders)):
+            nfo = NFOPostProcessor(
+                ydl, roots=(self.download_dir,), profile=self.info.nfo_profile,
+                poster=self.info.nfo_poster, within=_is_within_directory,
+                imvdb_id=self.info.nfo_imvdb_id,
+                state_dir=self.state_dir,
+            )
+            ydl.add_post_processor(NFOMetadataPreProcessor(
+                ydl, provider=nfo.provider, imvdb_id=self.info.nfo_imvdb_id,
+                artist_folders=self.artist_folders, directory=self.download_dir,
+                sanitize=lambda value: os.path.basename(_trim_to_name_max(
+                    os.path.join(self.download_dir, _sanitize_path_component(value)))),
+                within=_is_within_directory,
+                allowed=nfo._safe,
+            ), when='pre_process')
+            if self.info.nfo_profile != 'none':
+                ydl.add_post_processor(nfo, when='after_move')
         if getattr(self.info, 'download_type', '') == 'audio':
             ydl.add_post_processor(_AlbumArtistPostProcessor(ydl), when='pre_process')
             ydl.add_post_processor(
@@ -1041,6 +1073,15 @@ class Download:
                     {"default": self.output_template, "chapter": self.output_template_chapter},
                     self.ytdl_opts.get('outtmpl'), str_key='default'),
             }
+            if (getattr(self.info, 'download_type', '') == 'video'
+                    and getattr(self.info, 'nfo_profile', 'none') != 'none'
+                    and self.info.nfo_poster):
+                ytdl_params['writethumbnail'] = True
+            if self.artist_folders and getattr(self.info, 'download_type', '') == 'video':
+                for kind in ('default', 'chapter'):
+                    template = ytdl_params['outtmpl'][kind]
+                    directory, filename = os.path.split(template)
+                    ytdl_params['outtmpl'][kind] = os.path.join(directory, '%(metube_artist)s', filename)
             # Set after the ytdl_opts merge: the status reporting and failure
             # messages depend on these, so user options must not replace them.
             ytdl_params['progress_hooks'] = [put_status]
@@ -1840,7 +1881,7 @@ class DownloadQueue:
         if playlist_item_limit > 0:
             log.info(f'playlist limit is set. Processing only first {playlist_item_limit} entries')
             ytdl_options['playlistend'] = playlist_item_limit
-        download = Download(dldirectory, self.config.TEMP_DIR, output, output_chapter, dl.quality, dl.format, ytdl_options, dl, allow_private=self.config.ALLOW_PRIVATE_ADDRESSES, state_dir=self.config.STATE_DIR)
+        download = Download(dldirectory, self.config.TEMP_DIR, output, output_chapter, dl.quality, dl.format, ytdl_options, dl, allow_private=self.config.ALLOW_PRIVATE_ADDRESSES, state_dir=self.config.STATE_DIR, artist_folders=getattr(self.config, 'ARTIST_FOLDERS', False))
         is_upcoming = (
             getattr(dl, 'live_status', None) == 'is_upcoming'
             or getattr(dl, 'status', None) == 'scheduled'

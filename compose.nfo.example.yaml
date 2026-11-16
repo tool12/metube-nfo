@@ -1,0 +1,18 @@
+services:
+  metube:
+    build:
+      context: .
+      args:
+        VERSION: custom-nfo
+    image: metube-nfo:local
+    ports:
+      - "8081:8081"
+    environment:
+      IMVDB_APP_KEY: ${IMVDB_APP_KEY:-}
+      IMVDB_SEARCH_ENABLED: ${IMVDB_SEARCH_ENABLED:-false}
+      ARTIST_FOLDERS: ${ARTIST_FOLDERS:-true}
+      IMVDB_WEB_SEARCH_ENABLED: ${IMVDB_WEB_SEARCH_ENABLED:-true}
+      STATE_DIR: /downloads/.metube
+    volumes:
+      - ./downloads:/downloads
+    restart: unless-stopped

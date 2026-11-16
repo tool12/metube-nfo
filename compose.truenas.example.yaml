@@ -1,0 +1,20 @@
+services:
+  metube:
+    container_name: metube
+    image: ghcr.io/tool12/metube-nfo:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Santiago
+      - CHOWN_DIRS=false
+      - STATE_DIR=/state
+      - ARTIST_FOLDERS=true
+      - IMVDB_APP_KEY=REPLACE_WITH_YOUR_PRIVATE_KEY
+      - IMVDB_SEARCH_ENABLED=false
+      - IMVDB_WEB_SEARCH_ENABLED=true
+    ports:
+      - 8082:8081/tcp
+    restart: unless-stopped
+    volumes:
+      - /mnt/POOL/docker/metube/config:/state
+      - /mnt/POOL/media/videos-test:/downloads

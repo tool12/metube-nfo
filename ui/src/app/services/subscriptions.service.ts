@@ -92,6 +92,8 @@ export class SubscriptionsService {
       playlist_item_limit: payload.playlistItemLimit,
       auto_start: payload.autoStart,
       split_by_chapters: payload.splitByChapters,
+      nfo_profile: payload.downloadType === 'video' ? (payload.nfoProfile ?? 'none') : 'none',
+      nfo_poster: payload.nfoPoster ?? true,
       sponsorblock: payload.sponsorblock,
       audio_tags: payload.audioTags,
       chapter_template: payload.chapterTemplate,

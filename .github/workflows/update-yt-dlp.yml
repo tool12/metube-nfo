@@ -6,6 +6,7 @@ on:
 
 jobs:
   update-yt-dlp :
+    if: github.repository == 'alexta69/metube'
     runs-on: ubuntu-latest
     steps:
       -

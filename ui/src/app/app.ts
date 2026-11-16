@@ -89,6 +89,10 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
   playlistItemLimit!: number;
   splitByChapters: boolean;
   sponsorblock: boolean;
+  nfoImvdbId = '';
+  nfoProfile = 'none';
+  nfoPoster = true;
+  nfoProfiles: Option[] = [];
   audioTags: string;
   chapterTemplate: string;
   clipStart = '';
@@ -172,6 +176,8 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
     this.autoStart = this.settings.get('metube_auto_start') !== 'false';
     this.splitByChapters = this.settings.get('metube_split_chapters') === 'true';
     this.sponsorblock = this.settings.get('metube_sponsorblock') === 'true';
+    this.nfoProfile = this.settings.get('metube_nfo_profile') || 'none';
+    this.nfoPoster = this.settings.get('metube_nfo_poster') !== 'false';
     this.audioTags = this.settings.get('metube_audio_tags');
     // Will be set from backend configuration, use empty string as placeholder
     this.chapterTemplate = this.settings.get('metube_chapter_template') || '';
@@ -486,6 +492,11 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
     this.settings.set('metube_auto_start', this.autoStart ? 'true' : 'false');
   }
 
+  nfoChanged() {
+    this.settings.set('metube_nfo_profile', this.nfoProfile);
+    this.settings.set('metube_nfo_poster', this.nfoPoster ? 'true' : 'false');
+  }
+
   audioTagsChanged(value: string) {
     this.audioTags = value;
     this.settings.set('metube_audio_tags', this.audioTags);
@@ -625,6 +636,9 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
     this.downloadTypes = catalog.download_type.options;
     const audio = this.downloadTypes.find(t => t.audio_tags);
     const captions = this.downloadTypes.find(t => t.subtitle_mode || t.subtitle_language);
+    const nfo = this.downloadTypes.find(t => t.nfo_profile)?.nfo_profile;
+    this.nfoProfiles = nfo?.options ?? [];
+    this.nfoProfile = nfo ? this.pick(nfo, this.nfoProfile) : 'none';
     this.audioTagsOptions = audio?.audio_tags?.options ?? [];
     this.subtitleLanguages = captions?.subtitle_language?.options ?? [];
     this.subtitleModes = captions?.subtitle_mode?.options ?? [];
@@ -727,6 +741,9 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
       playlistItemLimit: overrides.playlistItemLimit ?? this.playlistItemLimit,
       autoStart: overrides.autoStart ?? this.autoStart,
       splitByChapters: overrides.splitByChapters ?? this.splitByChapters,
+      nfoImvdbId: overrides.nfoImvdbId ?? this.nfoImvdbId,
+      nfoProfile: overrides.nfoProfile ?? this.nfoProfile,
+      nfoPoster: overrides.nfoPoster ?? this.nfoPoster,
       sponsorblock: overrides.sponsorblock ?? this.sponsorblock,
       audioTags: overrides.audioTags ?? this.audioTags,
       chapterTemplate: overrides.chapterTemplate ?? this.chapterTemplate,
@@ -760,6 +777,7 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
           this.toasts.info(status.msg);
         }
         this.addUrl = '';
+        this.nfoImvdbId = '';
         this.videoPassword = '';
       }
       this.resetAddState();
