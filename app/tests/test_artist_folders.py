@@ -30,6 +30,15 @@ def test_uses_primary_artist_for_collaborations(tmp_path):
     assert info['metube_artist'] == 'Carlos Vives'
 
 
+def test_verified_song_title_avoids_artist_prefix_version_grouping(tmp_path):
+    pp = preprocessor(tmp_path, {'song_title': 'Song', 'artists': [{'name': 'Artist'}]})
+    original = 'Artist - Song (Official Music Video)'
+    _, info = pp.run({'title': original})
+    assert info['title'] == 'Song'
+    assert info['_metube_source_title'] == original
+    assert info['metube_artist'] == 'Artist'
+
+
 def test_folder_is_sanitized_and_filename_remains_confined(tmp_path):
     pp = preprocessor(tmp_path)
     _, info = pp.run({'title': 'Song', 'artist': '../../outside', 'id': 'id', 'ext': 'mp4'})

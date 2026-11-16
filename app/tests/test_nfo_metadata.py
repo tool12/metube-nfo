@@ -23,7 +23,7 @@ VIDEO = {'id': 123, 'song_title': 'Enter Sandman', 'year': 1991,
 
 def test_generic_does_not_mislabel_upload_as_premiere():
     root = make_nfo(INFO)
-    assert root.tag == 'movie'
+    assert root.tag == 'musicvideo'
     assert root.find('premiered') is None
     assert root.find('year') is None
     assert root.findtext('plot') == INFO['description']
@@ -92,7 +92,7 @@ def test_provider_failure_still_writes_generic_and_local_poster(tmp_path, monkey
     info = dict(INFO, filepath=str(video), thumbnails=[{'filepath': str(thumb)}])
     assert pp.run(info) == ([], info)
     root = ET.parse(video.with_suffix('.nfo')).getroot()
-    assert root.tag == 'movie'
+    assert root.tag == 'musicvideo'
     assert root.findtext('thumb') == 'video-poster.jpg'
     assert (tmp_path / 'video-poster.jpg').read_bytes() == b'example-image'
     assert video.read_bytes() == b'video'

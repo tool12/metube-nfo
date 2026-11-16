@@ -230,8 +230,8 @@ class IMVDbProvider:
 
 
 def make_nfo(info, video=None):
-    """Generic movie fallback, or a verified musicvideo. No invented release date."""
-    root = ET.Element('musicvideo' if video else 'movie')
+    """Music-video sidecar, with generic source fields when identification fails."""
+    root = ET.Element('musicvideo')
 
     def add(name, value):
         if value is not None and str(value).strip():
@@ -241,6 +241,10 @@ def make_nfo(info, video=None):
 
     add('title', video.get('song_title') if video else info.get('title'))
     add('plot', info.get('description'))
+    if not video:
+        artists = info.get('artists') or ([info['artist']] if info.get('artist') else [])
+        for artist in artists:
+            add('artist', artist)
     if info.get('duration') is not None:
         add('runtime', max(1, round(float(info['duration']) / 60)))
     identifier = info.get('id')
@@ -252,6 +256,7 @@ def make_nfo(info, video=None):
     if not source_url and str(info.get('extractor_key', '')).lower() == 'youtube' and identifier:
         source_url = 'https://www.youtube.com/watch?v=' + str(identifier)
     for name, value in [('Source URL', source_url),
+                        ('Source title', info.get('_metube_source_title')),
                         ('Channel', info.get('channel') or info.get('uploader')),
                         ('YouTube upload date', info.get('upload_date'))]:
         if value:
@@ -312,6 +317,13 @@ class NFOMetadataPreProcessor(PostProcessor):
         info['_metube_imvdb_checked'] = True
         if video:
             info['_metube_imvdb'] = video
+        # A shared artist directory must not turn "Artist - Song" filenames
+        # into Jellyfin's movie-version naming pattern. Prefer a verified song
+        # title or the extractor's structured track, never guessed title splits.
+        title = video.get('song_title') if video else info.get('track')
+        if isinstance(title, str) and title.strip():
+            info.setdefault('_metube_source_title', info.get('title'))
+            info['title'] = title.strip()
         if self.artist_folders:
             artists = (video.get('artists') or []) if video else []
             artist = artists[0].get('name') if artists else None

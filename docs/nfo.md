@@ -21,6 +21,12 @@ Otherwise yt-dlp creates the new folder while writing the download. Artist names
 go through MeTube's path sanitization and output confinement guards. Existing
 videos are not moved or renamed.
 
+When IMVDb identifies the recording, its song title is used as the filename's
+title. Otherwise a structured extractor track title is used if present. This
+avoids repeating an artist prefix that can make Jellyfin group different songs
+as versions in a shared artist folder. The original source title is retained
+as an NFO reference. Unstructured titles are not split or guessed.
+
 Playlist/channel grouping templates are bypassed for videos when artist folders
 are enabled, so batch downloads reuse the same artist directory in the selected
 destination. An explicitly selected destination folder remains the parent.
@@ -77,7 +83,9 @@ keep the download usable. A selected NFO profile produces a generic NFO using
 available original title, description, duration, ID, tags and source URL.
 
 A verified recording uses `musicvideo` XML and can add artist, director, year and
-a full premiere date. A generic video uses `movie` XML. Missing fields are omitted.
+a full premiere date. Generic fallback keeps the `musicvideo` root so it fits
+the same music-video library. Structured original artist fields are retained
+when available. Missing fields are omitted.
 YouTube's upload date is labelled separately; it never becomes an invented
 original premiere. An IMVDb year alone never becomes January 1st of that year.
 
