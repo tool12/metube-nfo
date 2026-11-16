@@ -2403,3 +2403,17 @@ def test_record_from_an_old_version_gets_every_default():
         assert getattr(info, name) == default, name
     info.subtitle_files.append("x")
     assert _DOWNLOAD_INFO_DEFAULTS["subtitle_files"] == []
+@pytest.mark.asyncio
+async def test_artist_folders_keep_playlist_items_in_the_shared_artist_layout(dq_env):
+    dq_env.ARTIST_FOLDERS = True
+    dq_env.OUTPUT_TEMPLATE_PLAYLIST = 'Playlist/%(title)s.%(ext)s'
+    dq = DownloadQueue(dq_env, AsyncMock())
+    url = 'https://example.com/watch?v=artist'
+    entry = {'_type': 'video', 'id': 'artist', 'title': 'Song', 'url': url,
+             'webpage_url': url, 'playlist_index': 1, 'playlist_title': 'My playlist'}
+    result = await dq.add_entry(entry, DownloadOptions(auto_start=False))
+    assert result['status'] == 'ok'
+    download = dq.pending.get(url)
+    assert download.artist_folders is True
+    assert download.output_template == dq_env.OUTPUT_TEMPLATE
+

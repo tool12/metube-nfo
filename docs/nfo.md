@@ -21,6 +21,10 @@ Otherwise yt-dlp creates the new folder while writing the download. Artist names
 go through MeTube's path sanitization and output confinement guards. Existing
 videos are not moved or renamed.
 
+Playlist/channel grouping templates are bypassed for videos when artist folders
+are enabled, so batch downloads reuse the same artist directory in the selected
+destination. An explicitly selected destination folder remains the parent.
+
 Example:
 
 ```text

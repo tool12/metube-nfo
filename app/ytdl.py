@@ -1853,16 +1853,17 @@ class DownloadQueue:
             return error_message
         output = self.config.OUTPUT_TEMPLATE
         output_chapter = self.config.OUTPUT_TEMPLATE_CHAPTER
+        artist_folders = getattr(self.config, 'ARTIST_FOLDERS', False) and dl.download_type == 'video'
         entry = getattr(dl, 'entry', None)
         feed_item = entry is not None and (
             entry.get('playlist_index') is not None or entry.get('channel_index') is not None
         )
-        if entry is not None and entry.get('playlist_index') is not None:
+        if entry is not None and entry.get('playlist_index') is not None and not artist_folders:
             if len(self.config.OUTPUT_TEMPLATE_PLAYLIST):
                 output = self.config.OUTPUT_TEMPLATE_PLAYLIST
             sanitized = {k: _sanitize_path_component(v) for k, v in entry.items()}
             output = _resolve_outtmpl_fields(output, sanitized, ('playlist',))
-        if entry is not None and entry.get('channel_index') is not None:
+        if entry is not None and entry.get('channel_index') is not None and not artist_folders:
             if len(self.config.OUTPUT_TEMPLATE_CHANNEL):
                 output = self.config.OUTPUT_TEMPLATE_CHANNEL
             sanitized = {k: _sanitize_path_component(v) for k, v in entry.items()}
@@ -1881,7 +1882,7 @@ class DownloadQueue:
         if playlist_item_limit > 0:
             log.info(f'playlist limit is set. Processing only first {playlist_item_limit} entries')
             ytdl_options['playlistend'] = playlist_item_limit
-        download = Download(dldirectory, self.config.TEMP_DIR, output, output_chapter, dl.quality, dl.format, ytdl_options, dl, allow_private=self.config.ALLOW_PRIVATE_ADDRESSES, state_dir=self.config.STATE_DIR, artist_folders=getattr(self.config, 'ARTIST_FOLDERS', False))
+        download = Download(dldirectory, self.config.TEMP_DIR, output, output_chapter, dl.quality, dl.format, ytdl_options, dl, allow_private=self.config.ALLOW_PRIVATE_ADDRESSES, state_dir=self.config.STATE_DIR, artist_folders=artist_folders)
         is_upcoming = (
             getattr(dl, 'live_status', None) == 'is_upcoming'
             or getattr(dl, 'status', None) == 'scheduled'
