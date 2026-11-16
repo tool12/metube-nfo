@@ -75,3 +75,29 @@ def test_state_folder_is_not_reused_for_artist(tmp_path):
     pp.allowed = post._safe
     _, info = pp.run({'title': 'Song'})
     assert info['metube_artist'] == 'state - artist'
+
+
+def test_new_artist_directory_and_nfo_follow_real_ytdlp_pipeline(tmp_path, monkeypatch):
+    monkeypatch.delenv('IMVDB_APP_KEY', raising=False)
+    ydl = _ConfinedYoutubeDL({
+        'quiet': True, 'paths': {'home': str(tmp_path)},
+        'outtmpl': {'default': '%(metube_artist)s/%(title)s.%(ext)s'},
+    }, allowed_roots=(tmp_path,))
+    provider = Mock()
+    provider.lookup.return_value = {'id': 123, 'song_title': 'Song',
+                                    'artists': [{'name': 'New Artist'}]}
+    pre = NFOMetadataPreProcessor(ydl, provider=provider, artist_folders=True,
+                                 directory=tmp_path, sanitize=_sanitize_path_component,
+                                 within=_is_within_directory)
+    post = NFOPostProcessor(ydl, roots=(tmp_path,), profile='kodi', poster=False,
+                            within=_is_within_directory)
+    ydl.add_post_processor(pre, when='pre_process')
+    ydl.add_post_processor(post, when='after_move')
+    info, _ = ydl.pre_process({'id': 'CD-E-LDc384', 'title': 'Song', 'ext': 'mp4'})
+    filename = ydl.prepare_filename(info)
+    assert ydl._ensure_dir_exists(filename)
+    Path(filename).write_bytes(b'pipeline-fixture')
+    ydl.post_process(filename, info)
+    assert (tmp_path / 'New Artist' / 'Song.mp4').exists()
+    assert (tmp_path / 'New Artist' / 'Song.nfo').exists()
+    provider.lookup.assert_called_once()
