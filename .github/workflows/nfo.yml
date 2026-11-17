@@ -78,6 +78,8 @@ jobs:
         run: |
           docker run --rm --entrypoint python3 -e PYTHONPATH=/app/app metube-nfo:ci \
             -c "import nfo_metadata, nfo_backfill; assert nfo_metadata.make_nfo({'title': 'Smoke test'}).tag == 'musicvideo'"
+      - name: Verify regularization CLI inside the image
+        run: docker run --rm --entrypoint python3 metube-nfo:ci /app/tools/regularize_nfo.py --help
       - name: Verify real WebP to JPEG conversion inside the image
         run: |
           docker run --rm --entrypoint python3 metube-nfo:ci \
