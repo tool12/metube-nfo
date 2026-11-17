@@ -162,7 +162,8 @@ exception types and numeric codes, never exception messages or request headers.
 ## Clean player metadata
 
 New NFO files omit the full YouTube description, promotional links, lyrics and
-YouTube tags. The summary contains only the original YouTube URL. They keep title, structured artists, duration, available verified
+YouTube tags. The summary retains the original YouTube URL and can include the
+MusicBrainz-linked Wikipedia introduction described below. They keep title, structured artists, duration, available verified
 premiere/year and director, local artwork and provider IDs. Original URLs,
 original display title and IMVDb catalog references live inside a custom
 `<metube>` provenance element instead of player-visible `<tag>` fields. This
@@ -228,3 +229,26 @@ Existing NFO are preserved; only new downloads receive the enrichment.
 
 References: https://www.mediawiki.org/wiki/Extension:TextExtracts and
 https://www.wikidata.org/wiki/Wikidata:Data_access .
+
+
+## Artist filter labels and resilient song descriptions
+
+New NFO sidecars keep each `artist` and add a distinct `tag` such as
+`Artista: Linkin Park`. Use the Jellyfin Tags filter in the music-video list;
+this does not add a native artist-filter control to Jellyfin. Duplicate artist
+names are normalized for tag deduplication. Missing artists produce no label,
+and promotional YouTube tags remain excluded.
+
+MusicBrainz canonical artist-name matches take precedence over a different
+artist merely credited with the same name. Multiple canonical identities remain
+ambiguous and are rejected. Single/EP searches use the confirmed artist MBID
+rather than searching its display name again, and verify the response artist ID.
+Wikipedia discovery checks both of the bounded confirmed recordings, including
+matching work relationships, when the first recording has no article links.
+This covers songs such as Maneater whose first recording has no work relation.
+
+A MusicBrainz HTTP 503 is retried once through the same shared rate limiter and
+within the existing lookup deadline; authentication/rate-limit errors are not
+retried. Song, group, genre, Wikipedia-link and description caches use a new
+namespace so old negative matches do not hide these improvements. Old cache
+files and all existing media/NFO are preserved. No new configuration is needed.

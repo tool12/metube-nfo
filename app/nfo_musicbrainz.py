@@ -7,6 +7,7 @@ import re
 import tempfile
 import time
 from urllib.parse import urlencode, urlsplit
+from urllib.error import HTTPError
 
 from nfo_genres import CatalogRequests, SongGenres, normalized, song_title
 
@@ -47,7 +48,14 @@ class MusicBrainzSongs(CatalogRequests):
         if not re.fullmatch(r'(?:recording|release-group|work)(?:/' + MBID + r')?', endpoint):
             raise ValueError('Unsupported MusicBrainz endpoint')
         url = 'https://musicbrainz.org/ws/2/' + endpoint + '?' + urlencode(dict(params, fmt='json'))
-        return self._request(url, 1.1, 'metube-musicbrainz-rate.lock')
+        for attempt in range(2):
+            try:
+                return self._request(url, 1.1, 'metube-musicbrainz-rate.lock')
+            except HTTPError as error:
+                # One transient-overload retry, within the existing lookup budget.
+                # The shared transport also rate-limits this second request.
+                if error.code != 503 or attempt or time.monotonic() + 1.1 >= self.deadline:
+                    raise
 
     def _path(self, kind, artist, title):
         key = hashlib.sha256((kind + ':' + normalized(artist) + ':' + normalized(title)).encode()).hexdigest()
@@ -93,7 +101,7 @@ class MusicBrainzSongs(CatalogRequests):
         return matches
 
     def _find_song(self, artist, title):
-        path = self._path('song-v1', artist, title)
+        path = self._path('song-v2', artist, title)
         hit, value = self._read(path)
         if hit:
             return value
@@ -103,7 +111,13 @@ class MusicBrainzSongs(CatalogRequests):
             if (normalized(song_title(item.get('title'))) == normalized(title)
                     and re.fullmatch(MBID, str(item.get('id') or ''))):
                 records.extend((item, match) for match in self._artist(item, artist))
-        # Homonymous artists cannot be resolved by an artist/title name alone.
+        # A different canonical artist can be credited using this artist's name
+        # (e.g. a cover). Prefer canonical-name matches when present, retaining
+        # credit-name aliases only when no canonical match exists.
+        canonical = [(item, match) for item, match in records
+                     if normalized(match.get('name')) == normalized(artist)]
+        records = canonical or records
+        # Homonymous canonical artists still cannot be resolved by names alone.
         artists = {match['id'] for _, match in records}
         value = None
         if len(artists) == 1:
@@ -149,22 +163,23 @@ class MusicBrainzSongs(CatalogRequests):
         return None
 
     def _group_ids(self, artist, title, artist_id):
-        path = self._path('groups-v1', artist, title)
+        path = self._path('groups-v2', artist, title)
         hit, value = self._read(path)
         if hit:
             return value or []
-        genre_hit, genre = self._read(self._path('genres-v1', artist, title))
+        genre_hit, genre = self._read(self._path('genres-v2', artist, title))
         if genre_hit and genre and genre.get('provider') == 'musicbrainz' and genre.get('catalog_entity') == 'release-group':
             ids = [identifier for identifier in genre.get('catalog_ids') or []
                    if re.fullmatch(MBID, str(identifier))]
             if ids:
                 return self._save(path, ids[:2])
-        response = self._get('release-group', query='artist:' + quoted(artist) + ' AND releasegroup:' + quoted(title), limit=10)
+        response = self._get('release-group', query='arid:' + artist_id + ' AND releasegroup:' + quoted(title), limit=10)
         groups = [item for item in response.get('release-groups') or []
                   if normalized(song_title(item.get('title'))) == normalized(title)
                   and item.get('primary-type') in ('Single', 'EP')
                   and re.fullmatch(MBID, str(item.get('id') or ''))
-                  and any(a['id'] == artist_id for a in self._artist(item, artist))]
+                  and any(isinstance(credit, dict) and (credit.get('artist') or {}).get('id') == artist_id
+                          for credit in item.get('artist-credit') or [])]
         plain = [item for item in groups if normalized(item.get('title')) == normalized(title)]
         ids = list(dict.fromkeys(item['id'] for item in plain or groups))[:2]
         self._save(path, ids or None)
@@ -174,7 +189,7 @@ class MusicBrainzSongs(CatalogRequests):
         artist, title = str(artist or '').strip(), song_title(title)
         if not artist or not title:
             return None
-        path = self._path('wikipedia-links-v1', artist, title)
+        path = self._path('wikipedia-links-v2', artist, title)
         hit, value = self._read(path)
         if hit:
             return value
@@ -189,7 +204,7 @@ class MusicBrainzSongs(CatalogRequests):
             if links:
                 links.update(musicbrainz_entity='release-group', musicbrainz_id=identifier)
                 return self._save(path, links)
-        for identifier in song['recording_ids'][:1]:
+        for identifier in song['recording_ids'][:2]:
             response = self._get('recording/' + identifier, inc='url-rels+work-rels')
             links = wikipedia_relations(response)
             if links:
@@ -211,7 +226,7 @@ class MusicBrainzSongs(CatalogRequests):
         artist, title = str(artist or '').strip(), song_title(title)
         if not artist or not title:
             return None
-        path = self._path('genres-v1', artist, title)
+        path = self._path('genres-v2', artist, title)
         hit, value = self._read(path)
         if hit:
             return value

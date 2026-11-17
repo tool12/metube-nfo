@@ -36,7 +36,7 @@ class SongDescription(CatalogRequests):
         artist, title = str(artist or '').strip(), song_title(title)
         if not artist or not title:
             return None
-        key = hashlib.sha256(('description-v1:' + self.language + ':' + normalized(artist) + ':' + normalized(title)).encode()).hexdigest()
+        key = hashlib.sha256(('description-v2:' + self.language + ':' + normalized(artist) + ':' + normalized(title)).encode()).hexdigest()
         cache = self.cache_dir / (key + '.json') if self.cache_dir else None
         if cache:
             try:

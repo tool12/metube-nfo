@@ -137,7 +137,7 @@ def test_wikipedia_work_fallback():
 
 def test_wikipedia_reuses_confirmed_genre_release_group(tmp_path):
     mb = MusicBrainzSongs(tmp_path)
-    mb._save(mb._path('genres-v1', 'Alicia Keys', 'No One'), {
+    mb._save(mb._path('genres-v2', 'Alicia Keys', 'No One'), {
         'provider': 'musicbrainz', 'catalog_entity': 'release-group',
         'catalog_ids': [GROUP], 'catalog_id': GROUP})
     mb._get = Mock(side_effect=[{'recordings': [entry()]},
@@ -153,3 +153,58 @@ def test_wikipedia_relationship_host_validation():
     assert wikipedia_relations({'relations': [
         {'type': 'wikidata', 'url': {'resource': 'https://www.wikidata.org/wiki/Q123'}},
         {'type': 'wikidata', 'url': {'resource': 'https://www.wikidata.org/wiki/Q456'}}]}) is None
+
+
+def test_canonical_artist_wins_over_another_artists_credit_name():
+    mb = MusicBrainzSongs()
+    cover = entry(identifier=GROUP, artist='TheKen', artist_id=GROUP)
+    cover['artist-credit'][0]['name'] = 'Alicia Keys'
+    mb._get = Mock(return_value={'recordings': [entry(), cover]})
+    result = mb.resolve_artist({'title': 'Alicia Keys - No One'})
+    assert result['artist_id'] == ARTIST
+    assert result['recording_ids'] == [REC]
+
+
+@pytest.mark.parametrize('code,calls', [(503, 2), (403, 1), (429, 1)])
+def test_transient_retry_is_bounded_and_does_not_retry_authentication(code, calls):
+    import time
+    from urllib.error import HTTPError
+    mb = MusicBrainzSongs()
+    mb.deadline = time.monotonic() + 10
+    error = HTTPError('https://musicbrainz.org/', code, 'test', {}, None)
+    mb._request = Mock(side_effect=[error, {'recordings': []}])
+    if code == 503:
+        assert mb._get('recording') == {'recordings': []}
+    else:
+        with pytest.raises(HTTPError):
+            mb._get('recording')
+    assert mb._request.call_count == calls
+
+
+def test_repeated_overload_stops_after_one_retry():
+    import time
+    from urllib.error import HTTPError
+    mb = MusicBrainzSongs()
+    mb.deadline = time.monotonic() + 10
+    mb._request = Mock(side_effect=HTTPError('https://musicbrainz.org/', 503, 'test', {}, None))
+    with pytest.raises(HTTPError):
+        mb._get('recording')
+    assert mb._request.call_count == 2
+
+
+def test_release_group_uses_confirmed_artist_id_not_display_alias():
+    mb = MusicBrainzSongs()
+    group = entry(GROUP, artist='Catalog Alias', **{'primary-type': 'Single'})
+    mb._get = Mock(return_value={'release-groups': [group]})
+    assert mb._group_ids('Alicia Keys', 'No One', ARTIST) == [GROUP]
+    assert mb._get.call_args.kwargs['query'].startswith('arid:' + ARTIST)
+
+
+def test_wikipedia_checks_second_recording_when_first_has_no_relationships():
+    mb = MusicBrainzSongs()
+    mb._get = Mock(side_effect=[{'recordings': [entry(), entry(GROUP)]},
+        {'release-groups': []}, {'relations': []},
+        {'relations': [{'type': 'wikipedia', 'url': {'resource': 'https://en.wikipedia.org/wiki/No_One'}}]}])
+    value = mb.wikipedia_links('Alicia Keys', 'No One')
+    assert value['musicbrainz_id'] == GROUP
+    assert mb._get.call_count == 4
