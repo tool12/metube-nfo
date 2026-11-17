@@ -78,6 +78,10 @@ jobs:
         run: |
           docker run --rm --entrypoint python3 -e PYTHONPATH=/app/app metube-nfo:ci \
             -c "import nfo_metadata, nfo_backfill; assert nfo_metadata.make_nfo({'title': 'Smoke test'}).tag == 'musicvideo'"
+      - name: Verify real WebP to JPEG conversion inside the image
+        run: |
+          docker run --rm --entrypoint python3 metube-nfo:ci \
+            -c "import subprocess, tempfile; from pathlib import Path; from yt_dlp import YoutubeDL; from yt_dlp.postprocessor.ffmpeg import FFmpegThumbnailsConvertorPP; d=tempfile.TemporaryDirectory(); source=str(Path(d.name)/'poster.webp'); subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=red:s=16x16','-frames:v','1',source],check=True); target=FFmpegThumbnailsConvertorPP(YoutubeDL({'quiet':True}),format='jpg').convert_thumbnail(source,'jpg'); assert Path(target).read_bytes().startswith(bytes.fromhex('ffd8ff')); print('Real JPEG conversion OK')"
       - name: Log in to GHCR
         if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
