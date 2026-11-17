@@ -36,14 +36,10 @@ class _NoRedirect(HTTPRedirectHandler):
 _thread_lock = threading.Lock()
 
 
-class SongGenres:
-    def __init__(self, cache_dir=None):
-        self.cache_dir = Path(cache_dir) if cache_dir else None
-        self.deadline = 0
-
-    def _get(self, endpoint, **params):
+class CatalogRequests:
+    def _request(self, url, interval, lock_name):
         # Shared across download processes, including when STATE_DIR is absent.
-        lock_path = Path(tempfile.gettempdir()) / 'metube-song-genres-rate.lock'
+        lock_path = Path(tempfile.gettempdir()) / lock_name
         with _thread_lock, lock_path.open('a+') as lock:
             try:
                 import fcntl
@@ -65,7 +61,7 @@ class SongGenres:
                     previous = float(lock.read() or '0')
                 except ValueError:
                     previous = 0
-                delay = max(0, min(3.1, previous + 3.1 - time.time()))
+                delay = max(0, min(interval, previous + interval - time.time()))
                 if time.monotonic() + delay >= self.deadline:
                     raise TimeoutError('Genre lookup budget exhausted')
                 time.sleep(delay)
@@ -73,7 +69,6 @@ class SongGenres:
                 lock.truncate()
                 lock.write(str(time.time()))
                 lock.flush()
-                url = 'https://itunes.apple.com/search?' + urlencode(params)
                 request = Request(url, headers={
                     'User-Agent': 'MeTube-NFO/1 (https://github.com/tool12/metube-nfo)',
                     'Accept': 'application/json',
@@ -89,6 +84,18 @@ class SongGenres:
             finally:
                 if fcntl and acquired:
                     fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+
+class SongGenres(CatalogRequests):
+    """Apple catalog fallback; MusicBrainz precedence is handled separately."""
+    def __init__(self, cache_dir=None):
+        self.cache_dir = Path(cache_dir) if cache_dir else None
+        self.deadline = 0
+
+    def _get(self, endpoint, **params):
+        return self._request('https://itunes.apple.com/search?' + urlencode(params),
+                             3.1, 'metube-song-genres-rate.lock')
 
     def lookup(self, artist, title):
         title = song_title(title)
