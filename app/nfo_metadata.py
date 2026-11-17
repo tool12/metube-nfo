@@ -18,6 +18,7 @@ from html.parser import HTMLParser
 
 from yt_dlp.postprocessor.common import PostProcessor
 from nfo_genres import SongGenres
+from nfo_musicbrainz import MusicBrainzSongs, PreferredGenres
 
 log = logging.getLogger('ytdl')
 
@@ -257,6 +258,8 @@ def make_nfo(info, video=None):
     add('title', video.get('song_title') if video else info.get('title'))
     if not video:
         artists = info.get('artists') or ([info['artist']] if info.get('artist') else [])
+        if not artists and (info.get('_metube_musicbrainz') or {}).get('artist'):
+            artists = [info['_metube_musicbrainz']['artist']]
         for artist in artists:
             add('artist', artist)
     if info.get('duration') is not None:
@@ -273,6 +276,10 @@ def make_nfo(info, video=None):
         source_url = 'https://www.youtube.com/watch?v=' + str(identifier)
     add('source_url', source_url, provenance)
     add('source_title', info.get('_metube_source_title'), provenance)
+    mb_artist = info.get('_metube_musicbrainz') or {}
+    if mb_artist.get('artist_id'):
+        add('folder_artist_provider', 'musicbrainz', provenance)
+        add('folder_artist_musicbrainz_id', mb_artist['artist_id'], provenance)
     if str(info.get('extractor_key', '')).lower().startswith('youtube') and source_url:
         add('plot', 'YouTube: ' + source_url)
     genre_result = info.get('_metube_genres') or {}
@@ -280,6 +287,7 @@ def make_nfo(info, video=None):
         add('genre', genre)
     if genre_result.get('catalog_id'):
         add('genre_provider', genre_result.get('provider'), provenance)
+        add('genre_catalog_entity', genre_result.get('catalog_entity'), provenance)
         for catalog_id in genre_result.get('catalog_ids') or [genre_result['catalog_id']]:
             add('genre_catalog_id', catalog_id, provenance)
         add('genre_match_basis', genre_result.get('match_basis'), provenance)
@@ -332,9 +340,10 @@ class NFOMetadataPreProcessor(PostProcessor):
     """Resolve credits before filename expansion; folders are created by yt-dlp."""
 
     def __init__(self, downloader, *, provider, imvdb_id='', artist_folders=False,
-                 directory=None, sanitize=None, within=None, allowed=None):
+                 directory=None, sanitize=None, within=None, allowed=None, musicbrainz=None):
         super().__init__(downloader)
         self.provider = provider
+        self.musicbrainz = musicbrainz
         self.imvdb_id = imvdb_id
         self.artist_folders = artist_folders
         self.directory = Path(directory).resolve() if directory else None
@@ -364,6 +373,14 @@ class NFOMetadataPreProcessor(PostProcessor):
             if not artist:
                 original = info.get('artists') or []
                 artist = original[0] if original else info.get('artist')
+            if not artist and self.musicbrainz is not None:
+                try:
+                    resolved = self.musicbrainz.resolve_artist(info)
+                    if resolved:
+                        info['_metube_musicbrainz'] = resolved
+                        artist = resolved['artist']
+                except Exception as error:
+                    self.report_warning('MusicBrainz artist lookup unavailable (' + _failure_code(error) + ')')
             # Preserve a useful default even if directory enumeration fails.
             name = self.sanitize(str(artist or 'Sin artista'))
             if self.allowed and not self.allowed((self.directory / name).resolve()):
@@ -402,8 +419,12 @@ class NFOPostProcessor(PostProcessor):
             search_enabled=os.getenv('IMVDB_SEARCH_ENABLED', 'false').lower() in ('true', '1', 'on'),
             web_search_enabled=os.getenv('IMVDB_WEB_SEARCH_ENABLED', 'true').lower() in ('true', '1', 'on'))
         self.state_dir = Path(state_dir).resolve() if state_dir else None
-        self.genre_provider = SongGenres(
-            self.state_dir / 'song-genres' if self.state_dir else None)
+        self.musicbrainz_enabled = os.getenv('MUSICBRAINZ_ENABLED', 'true').lower() in ('true', '1', 'on')
+        self.musicbrainz = MusicBrainzSongs(
+            self.state_dir / 'musicbrainz-songs' if self.state_dir else None)
+        self.genre_provider = PreferredGenres(
+            self.musicbrainz, SongGenres(self.state_dir / 'song-genres' if self.state_dir else None),
+            enabled=self.musicbrainz_enabled)
 
     def _safe(self, path):
         if (self.state_dir and self.within(str(self.state_dir), str(path))
@@ -433,6 +454,8 @@ class NFOPostProcessor(PostProcessor):
                 artist = artists[0].get('name') if artists else info.get('artist')
                 if not artist and info.get('artists'):
                     artist = info['artists'][0]
+                if not artist:
+                    artist = (info.get('_metube_musicbrainz') or {}).get('artist')
                 title = video.get('song_title') if video else (info.get('track') or info.get('title'))
                 if artist and title and ' - ' in title:
                     prefix, remainder = title.split(' - ', 1)

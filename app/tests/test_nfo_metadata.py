@@ -399,3 +399,35 @@ def test_genre_failure_never_prevents_nfo(tmp_path, monkeypatch):
     pp.run(dict(INFO, artist='Artist', track='Song', filepath=str(video)))
     assert ET.parse(video.with_suffix('.nfo')).find('genre') is None
     assert 'private message' not in str(pp.report_warning.call_args_list)
+
+
+
+def test_musicbrainz_folder_identity_does_not_invent_video_credits():
+    root = make_nfo(dict(INFO, _metube_musicbrainz={
+        'artist': 'Alicia Keys', 'artist_id': 'mb-artist', 'song_title': 'No One'}))
+    assert root.findtext('artist') == 'Alicia Keys'
+    assert root.findtext('metube/folder_artist_musicbrainz_id') == 'mb-artist'
+    assert root.find('year') is None
+    assert root.find('premiered') is None
+    assert root.find('director') is None
+    assert root.find("uniqueid[@type='imvdb']") is None
+
+
+
+def test_download_pipeline_connects_musicbrainz_artist_fallback(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from ytdl import Download
+    monkeypatch.delenv('IMVDB_APP_KEY', raising=False)
+    download = Download.__new__(Download)
+    download.info = SimpleNamespace(download_type='video', nfo_profile='jellyfin',
+                                    nfo_poster=False, nfo_imvdb_id='')
+    download.download_dir = download.temp_dir = str(tmp_path)
+    download.state_dir = None
+    download.artist_folders = True
+    ydl = download._make_youtube_dl({'quiet': True, 'paths': {'home': str(tmp_path)}})
+    pre = next(pp for pp in ydl._pps['pre_process'] if pp.__class__.__name__ == 'NFOMetadataPreProcessor')
+    pre.provider.lookup = Mock(return_value=None)
+    pre.musicbrainz.resolve_artist = Mock(return_value={'artist': 'Alicia Keys', 'artist_id': 'mb-artist'})
+    info, _ = ydl.pre_process(dict(INFO, title='Alicia Keys - No One', ext='mp4'))
+    assert info['metube_artist'] == 'Alicia Keys'
+    assert info['_metube_musicbrainz']['artist'] == 'Alicia Keys'

@@ -1011,6 +1011,7 @@ class Download:
                     os.path.join(self.download_dir, _sanitize_path_component(value)))),
                 within=_is_within_directory,
                 allowed=nfo._safe,
+                musicbrainz=nfo.musicbrainz if nfo.musicbrainz_enabled else None,
             ), when='pre_process')
             if self.info.nfo_profile != 'none':
                 if self.info.nfo_poster:

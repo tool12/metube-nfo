@@ -12,8 +12,11 @@ With `ARTIST_FOLDERS=true` (the default), video downloads go into an artist
 directory. Metadata is resolved before yt-dlp expands the filename. The primary
 artist from a verified IMVDb recording takes precedence over the original
 extractor's artist. Collaborations use the primary artist, without duplicating
-the file into every collaborator's directory. If no artist is available, the
-folder is `Sin artista`. This applies to videos, not separate audio downloads.
+the file into every collaborator's directory. If both sources lack an artist,
+MusicBrainz is tried third: an `Artist - Song` display title is only a search
+hint and must match a unique artist identity plus song title in the catalog.
+A confirmed canonical artist passes the same folder guards. If no artist is
+confirmed, the folder is `Sin artista`. This applies to videos, not separate audio downloads.
 
 Existing artist folders are reused when their normalized names match uniquely,
 including case or punctuation differences such as `AC-DC` and `AC_DC`.
@@ -178,18 +181,23 @@ with a role only when supplied. Duplicate names are omitted. The original
 YouTube URL is the only `plot` content. An explicit `imvdbid` accompanies the
 provider unique ID for NFO readers supporting provider-specific elements.
 
-Genre uses the public Apple iTunes Search API, matching structured artist and
-base song title, ignoring bracketed remix/live/edit/official/featured-credit
-qualifiers. An unqualified base-song entry is preferred. This genre does not
-claim to describe the exact video/remix. Up to three distinct genres are retained across matching editions, ordered by
-frequency and then name; repeated names are deduplicated case-insensitively. No artist-only guessing. No artwork, previews or audio are taken from
-Apple. Provenance is stored inside `metube`.
+Genre uses MusicBrainz first, matching artist and base song title. It checks
+recording genres, then genres of a matching Single/EP release group when the
+recording has none. Up to three positive genres are retained, ranked by votes
+and name. If MusicBrainz has no genres/match or fails, Apple iTunes Search API
+is the fallback. Apple prefers the unqualified base-song entry and keeps up to
+three distinct genres across matching editions. Neither provider guesses from
+artist alone. Remix/live/edit/display qualifiers are ignored for song-level
+matching, never to claim the exact video credits or premiere. No artwork,
+previews or audio are taken from these providers. Provenance stays in `metube`.
 
-No additional API key is required. Requests are serialized across download
-processes at least 3.1 seconds apart, with a bounded lookup budget. Positive
-results are cached seven days and empty results one day in STATE_DIR/song-genres.
-Errors leave the rest of the NFO intact. Set `NFO_GENRES_ENABLED=false` to disable.
-Existing NFO files remain untouched. Test new downloads after image updates.
+No additional API key is required. MusicBrainz requests are serialized across
+download processes at least 1.1 seconds apart, Apple at least 3.1 seconds apart.
+Requests have bounded lookup/response limits. Positive results are cached seven
+days and empty results one day in STATE_DIR/musicbrainz-songs and song-genres.
+Errors leave the rest of the NFO intact. NFO_GENRES_ENABLED=false disables genre
+lookups; MUSICBRAINZ_ENABLED=false disables MusicBrainz for both artist fallback
+and genres (Apple remains the genre fallback). Existing NFO/media are untouched.
 
 References: https://performance-partners.apple.com/search-api and
 https://jellyfin.org/docs/general/server/metadata/nfo/ .
@@ -198,3 +206,8 @@ The multi-genre cache uses a new namespace, so an empty result saved by the
 previous strict-consensus rule cannot hide newly accepted genres. Old cache
 files and existing NFO are preserved; no state-directory cleanup is required.
 Genre provenance retains all contributing catalog track IDs.
+
+MusicBrainz references: https://musicbrainz.org/doc/MusicBrainz_API and its rate
+limiting rules. A MusicBrainz artist/song match supplies folder identity and
+genre only: it does not replace IMVDb's exact YouTube source requirement for
+video credits, release year or premiere date. Wikipedia text is not yet fetched.

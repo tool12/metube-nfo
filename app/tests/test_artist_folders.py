@@ -116,3 +116,42 @@ def test_new_artist_directory_and_nfo_follow_real_ytdlp_pipeline(tmp_path, monke
 @pytest.fixture(autouse=True)
 def disable_live_genre_network(monkeypatch):
     monkeypatch.setenv('NFO_GENRES_ENABLED', 'false')
+
+
+
+def test_musicbrainz_is_third_choice_and_reuses_existing_folder(tmp_path):
+    (tmp_path / 'alicia keys').mkdir()
+    pp = preprocessor(tmp_path)
+    pp.musicbrainz = Mock()
+    pp.musicbrainz.resolve_artist.return_value = {'artist': 'Alicia Keys', 'artist_id': 'mb-artist'}
+    _, info = pp.run({'title': 'Alicia Keys - No One'})
+    assert info['metube_artist'] == 'alicia keys'
+    assert info['_metube_musicbrainz']['artist'] == 'Alicia Keys'
+    assert [p.name for p in tmp_path.iterdir()] == ['alicia keys']
+
+
+@pytest.mark.parametrize('source', ['imvdb', 'youtube'])
+def test_musicbrainz_does_not_replace_higher_priority_artist(tmp_path, source):
+    pp = preprocessor(tmp_path, {'artists': [{'name': 'Catalog Artist'}]} if source == 'imvdb' else None)
+    pp.musicbrainz = Mock()
+    _, info = pp.run({'title': 'Song', 'artist': 'YouTube Artist'})
+    assert info['metube_artist'] == ('Catalog Artist' if source == 'imvdb' else 'YouTube Artist')
+    pp.musicbrainz.resolve_artist.assert_not_called()
+
+
+def test_musicbrainz_failure_keeps_unidentified_fallback(tmp_path):
+    pp = preprocessor(tmp_path)
+    pp.musicbrainz = Mock()
+    pp.musicbrainz.resolve_artist.side_effect = TimeoutError('private message')
+    _, info = pp.run({'title': 'Unknown'})
+    assert info['metube_artist'] == 'Sin artista'
+    assert 'private message' not in str(pp.report_warning.call_args_list)
+
+
+def test_musicbrainz_artist_remains_confined(tmp_path):
+    pp = preprocessor(tmp_path)
+    pp.musicbrainz = Mock()
+    pp.musicbrainz.resolve_artist.return_value = {'artist': '../../outside'}
+    _, info = pp.run({'title': 'Unknown - Song'})
+    assert '/' not in info['metube_artist']
+    assert '..' not in info['metube_artist']
