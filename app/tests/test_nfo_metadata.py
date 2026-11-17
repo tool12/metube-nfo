@@ -460,3 +460,26 @@ def test_description_is_independent_of_imvdb_and_genres(tmp_path, monkeypatch, f
     else:
         assert 'Song history.' not in root.findtext('plot')
         assert 'private message' not in str(pp.report_warning.call_args_list)
+
+
+@pytest.mark.parametrize('api_search', [False, True])
+def test_decomposed_youtube_artist_finds_verified_imvdb_video(api_search):
+    info = dict(INFO, id='ekr2nIex040', title='ROSE\u0301 & Bruno Mars - APT. (Official Music Video)')
+    video = dict(VIDEO, song_title='APT.', sources=[
+        {'source': 'youtube', 'source_data': info['id']}])
+    provider = IMVDbProvider('test-only', search_enabled=api_search)
+    def html(path, **params):
+        if path == '/search':
+            if params['search_term'] == 'ROSÉ & Bruno Mars - APT.':
+                return '<a href="/video/rose/apt">APT.</a>'
+            return ''
+        return 'ID: 123'
+    provider._get_html = Mock(side_effect=html)
+    def api(endpoint, **params):
+        if endpoint == 'search/videos':
+            return {'results': [{'id': 123}]} if params['q'].startswith('ROSÉ & Bruno Mars') else {'results': []}
+        return video
+    provider._get = Mock(side_effect=api)
+    assert provider.lookup(info) == video
+    video['sources'] = []
+    assert provider.lookup(info) is None

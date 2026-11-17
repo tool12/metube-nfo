@@ -160,7 +160,7 @@ class IMVDbProvider:
         if not self.key or not artist or not title:
             return None
         self._deadline = time.monotonic() + 15
-        query = f'{artist} {title}'[:200]
+        query = unicodedata.normalize('NFC', f'{artist} {title}')[:200]
         if self.search_enabled:
             candidates = self._get('search/videos', q=query, per_page=5).get('results') or []
         elif self.web_search_enabled:
@@ -213,6 +213,9 @@ class IMVDbProvider:
             artist = info.get('artist') or ', '.join(info.get('artists') or [])
             query = (f"{artist} {info['track']}".strip() if info.get('track')
                      else str(info.get('title') or ''))[:200]
+            # YouTube may spell accented names with combining characters;
+            # IMVDb search treats these differently from composed Unicode.
+            query = unicodedata.normalize('NFC', query)
             if self.search_enabled:
                 result = self._get('search/videos', q=query, per_page=5)
             elif self.web_search_enabled:
