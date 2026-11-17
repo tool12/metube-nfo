@@ -98,24 +98,55 @@ links are also recorded, with catalog links explicitly labelled as references.
 For new downloads the exact-source match is required before applying catalog
 credits. NFO/artwork errors warn and preserve the downloaded video.
 
-## Existing library: review first
+## Existing library: preview, review and apply
 
-The separate script is read-only by default:
+The image includes `/app/tools/regularize_nfo.py`. It uses the same `make_nfo`
+writer and genre/Wikipedia providers as new downloads. It never downloads,
+renames or moves videos, nor replaces artwork. Mount an existing library
+separately from the download directory; keep reports and cache in STATE_DIR,
+outside that library. For a read-only first pass, mount `/library:ro`.
+
+Preview a small batch (default mode is refresh; limit 0 means the entire library):
 
 ```bash
-python tools/regularize_nfo.py /path/to/library --limit 20 --report preview.json
+python tools/regularize_nfo.py /library --limit 3 --mode refresh --report /state/nfo-preview.json
 ```
 
-It reads `IMVDB_APP_KEY` from the environment or a private project `.env`. It uses
-existing NFO artist/title or the folder/filename and requires an unambiguous
-normalized artist/title match. Without an original source ID, catalog YouTube
-links are references, not proof of the downloaded file's source.
+`--artist "Artist Name"` limits relative artist folders and can be repeated.
+Directories/files starting with `_` or `.` are excluded from automatic traversal.
+Credentials use existing environment variables or a private project `.env`;
+apply needs no credentials. Provider cache is outside the library and lookups
+retain the download adapters' rate limits and budgets.
 
-Review the report before explicitly adding `--apply`. Existing NFOs get timestamped
-backups before replacement, populated fields and unknown elements are preserved,
-and invalid XML/unmatched files are skipped. Keep reports outside the library.
-The script neither downloads media nor replaces artwork. Stop other NFO writers
-before applying and retain backups to restore individual files.
+The report includes exact proposed XML, source/match basis, genres, Wikipedia
+URL, artist tags and safe error codes. Original YouTube IDs come from existing
+NFO or adjacent `.info.json`, never a guessed search result. With an original
+ID, IMVDb must match it; without one, a unique artist/title catalog match is
+explicitly labelled unverified and catalog YouTube links are references only.
+Missing fields remain missing. Provider exceptions mark the proposal incomplete
+and prevent automatic application of that row; rerun preview later to retry.
+
+Review the JSON before applying the *same saved payloads*, offline:
+
+```bash
+python tools/regularize_nfo.py /library --apply-plan /state/nfo-preview.json --report /state/nfo-applied.json
+```
+
+Apply requires a writable library mount. It refuses changed NFO bytes, changed
+video sizes, symlinks and paths outside the supplied root. Existing NFO get exact
+timestamped `.nfo.bak-...` backups before atomic replacement; the apply report
+records their paths and before/after hashes. Stop other NFO writers while applying.
+`refresh` deliberately regenerates the schema and removes old/custom fields from
+the active NFO; they remain in the backup. Choose `--mode missing` at preview
+if existing populated fields and unknown elements should be retained instead.
+The old direct `--apply` workflow is replaced by `--apply-plan`.
+
+Existing JPG/poster files are referenced; this script does not download or
+convert artwork. Back up the library/dataset before a large apply. To undo an
+individual replacement, copy its recorded backup over the NFO, then rescan
+metadata in Jellyfin. Preserve the backup until results are verified. If no NFO
+existed previously, its newly created sidecar can be removed to undo it; no
+backup exists for a previously absent file. No bulk apply is part of a preview.
 
 ## Maintenance and checks
 

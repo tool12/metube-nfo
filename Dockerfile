@@ -85,6 +85,7 @@ RUN BGUTIL_TAG="$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com
     rm /tmp/bgutil-ytdlp-pot-provider-rs.zip
 
 COPY app ./app
+COPY tools ./tools
 COPY --from=builder /metube/dist/metube ./ui/dist/metube
 
 ENV PUID=1000
