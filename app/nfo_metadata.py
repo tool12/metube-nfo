@@ -1,5 +1,6 @@
 """Optional sidecars; the IMVDb V1 adapter is isolated for the announced V2 migration."""
 
+import errno
 import json
 import logging
 import os
@@ -87,6 +88,19 @@ def _normalized_name(value):
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
+
+
+def _failure_code(error):
+    # Never include exception messages, URLs, headers or credentials in logs.
+    code = getattr(error, 'code', None)
+    number = getattr(error, 'errno', None)
+    reason = getattr(error, 'reason', None)
+    detail = f' HTTP {code}' if isinstance(code, int) else ''
+    if isinstance(number, int):
+        detail += f' errno {number}'
+    if reason is not None:
+        detail += f' reason {type(reason).__name__}'
+    return type(error).__name__ + detail
 
 
 class IMVDbProvider:
@@ -312,8 +326,8 @@ class NFOMetadataPreProcessor(PostProcessor):
         video = None
         try:
             video = self.provider.lookup(info, self.imvdb_id)
-        except Exception:
-            self.report_warning('IMVDb unavailable; using original video metadata')
+        except Exception as error:
+            self.report_warning('IMVDb unavailable; using original video metadata (' + _failure_code(error) + ')')
         info['_metube_imvdb_checked'] = True
         if video:
             info['_metube_imvdb'] = video
@@ -388,9 +402,8 @@ class NFOPostProcessor(PostProcessor):
             try:
                 video = (info.get('_metube_imvdb') if info.get('_metube_imvdb_checked')
                          else self.provider.lookup(info, self.imvdb_id))
-            except Exception:
-                # Do not log HTTP requests or credentials. Supplemental only.
-                self.report_warning('IMVDb unavailable; writing generic NFO')
+            except Exception as error:
+                self.report_warning('IMVDb unavailable; writing generic NFO (' + _failure_code(error) + ')')
             if not video:
                 self.report_warning('No verified IMVDb match; writing generic NFO')
             root = make_nfo(info, video)
@@ -430,11 +443,18 @@ class NFOPostProcessor(PostProcessor):
                 with NamedTemporaryFile(dir=target.parent, prefix='.nfo-', suffix='.tmp', delete=False) as stream:
                     temporary = Path(stream.name)
                     stream.write(payload)
-                os.chmod(temporary, path.stat().st_mode & 0o666)
+                try:
+                    os.chmod(temporary, path.stat().st_mode & 0o666)
+                except OSError as error:
+                    if error.errno not in (errno.EPERM, errno.ENOTSUP, errno.ENOSYS):
+                        raise
+                    # NFSv4 ACL datasets can allow file creation but reject chmod.
+                    # Retain the temporary file's inherited ACL/restricted mode.
+                    self.report_warning('NFO permissions retained from filesystem ACL (' + _failure_code(error) + ')')
                 os.link(temporary, target)
             finally:
                 if temporary is not None:
                     temporary.unlink(missing_ok=True)
-        except Exception:
-            self.report_warning('Could not write NFO; keeping downloaded video')
+        except Exception as error:
+            self.report_warning('Could not write NFO; keeping downloaded video (' + _failure_code(error) + ')')
         return [], info

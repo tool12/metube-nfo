@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 import yt_dlp.networking.impersonate
 from yt_dlp.postprocessor.common import PostProcessor
+from yt_dlp.postprocessor.ffmpeg import FFmpegThumbnailsConvertorPP
 from yt_dlp.utils import STR_FORMAT_RE_TMPL, STR_FORMAT_TYPES
 import bg_tasks
 from dl_formats import get_format, get_opts, merge_ytdl_option_layers
@@ -1002,6 +1003,9 @@ class Download:
                 allowed=nfo._safe,
             ), when='pre_process')
             if self.info.nfo_profile != 'none':
+                if self.info.nfo_poster:
+                    ydl.add_post_processor(
+                        FFmpegThumbnailsConvertorPP(ydl, format='jpg'), when='before_dl')
                 ydl.add_post_processor(nfo, when='after_move')
         if getattr(self.info, 'download_type', '') == 'audio':
             ydl.add_post_processor(_AlbumArtistPostProcessor(ydl), when='pre_process')
