@@ -104,3 +104,52 @@ def test_requests_are_fixed_host_and_rate_limited():
     assert lock == 'metube-musicbrainz-rate.lock'
     with pytest.raises(ValueError):
         mb._get('https://evil.invalid/')
+
+
+def test_wikipedia_uses_confirmed_single_and_cached_identity(tmp_path):
+    mb = MusicBrainzSongs(tmp_path)
+    mb._get = Mock(side_effect=[{'recordings': [entry()]},
+        {'release-groups': [entry(GROUP, **{'primary-type': 'Single'})]},
+        {'relations': [{'type': 'wikidata', 'url': {'resource': 'https://www.wikidata.org/wiki/Q123'}}]}])
+    value = mb.wikipedia_links('Alicia Keys', 'No One')
+    assert value['wikidata_ids'] == ['Q123']
+    assert value['musicbrainz_id'] == GROUP
+    assert mb.wikipedia_links('Alicia Keys', 'No One (Remix)') == value
+    assert mb._get.call_count == 3
+
+
+def test_wikipedia_never_uses_unconfirmed_artist_song():
+    mb = MusicBrainzSongs()
+    mb._get = Mock(return_value={'recordings': [entry(artist='Other Artist')]})
+    assert mb.wikipedia_links('Alicia Keys', 'No One') is None
+    assert mb._get.call_count == 1
+
+
+def test_wikipedia_work_fallback():
+    mb = MusicBrainzSongs()
+    mb._get = Mock(side_effect=[{'recordings': [entry()]}, {'release-groups': []},
+        {'relations': [{'type': 'performance', 'work': {'id': GROUP, 'title': 'No One'}}]},
+        {'relations': [{'type': 'wikipedia', 'url': {'resource': 'https://en.wikipedia.org/wiki/No_One'}}]}])
+    value = mb.wikipedia_links('Alicia Keys', 'No One')
+    assert value['musicbrainz_entity'] == 'work'
+    assert value['wikipedia_urls'] == ['https://en.wikipedia.org/wiki/No_One']
+
+
+def test_wikipedia_reuses_confirmed_genre_release_group(tmp_path):
+    mb = MusicBrainzSongs(tmp_path)
+    mb._save(mb._path('genres-v1', 'Alicia Keys', 'No One'), {
+        'provider': 'musicbrainz', 'catalog_entity': 'release-group',
+        'catalog_ids': [GROUP], 'catalog_id': GROUP})
+    mb._get = Mock(side_effect=[{'recordings': [entry()]},
+        {'relations': [{'type': 'wikidata', 'url': {'resource': 'https://www.wikidata.org/wiki/Q123'}}]}])
+    assert mb.wikipedia_links('Alicia Keys', 'No One')['musicbrainz_id'] == GROUP
+    assert mb._get.call_count == 2
+
+
+def test_wikipedia_relationship_host_validation():
+    from nfo_musicbrainz import wikipedia_relations
+    assert wikipedia_relations({'relations': [
+        {'type': 'wikipedia', 'url': {'resource': 'https://evil.example/wiki/Song'}}]}) is None
+    assert wikipedia_relations({'relations': [
+        {'type': 'wikidata', 'url': {'resource': 'https://www.wikidata.org/wiki/Q123'}},
+        {'type': 'wikidata', 'url': {'resource': 'https://www.wikidata.org/wiki/Q456'}}]}) is None

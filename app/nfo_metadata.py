@@ -19,6 +19,7 @@ from html.parser import HTMLParser
 from yt_dlp.postprocessor.common import PostProcessor
 from nfo_genres import SongGenres
 from nfo_musicbrainz import MusicBrainzSongs, PreferredGenres
+from nfo_wikipedia import SongDescription
 
 log = logging.getLogger('ytdl')
 
@@ -280,8 +281,18 @@ def make_nfo(info, video=None):
     if mb_artist.get('artist_id'):
         add('folder_artist_provider', 'musicbrainz', provenance)
         add('folder_artist_musicbrainz_id', mb_artist['artist_id'], provenance)
+    description = info.get('_metube_description') or {}
+    plot = []
+    if description.get('text'):
+        plot.extend([description['text'],
+                     'Wikipedia — ' + str(description.get('title') or '') + ': ' + str(description.get('url') or ''),
+                     'Extracto de los colaboradores de Wikipedia (puede estar abreviado). Licencia: '
+                     + str(description.get('license_url') or '')])
+        for key in ('url', 'language', 'revision_id', 'license_url', 'musicbrainz_entity', 'musicbrainz_id'):
+            add('description_' + key, description.get(key), provenance)
     if str(info.get('extractor_key', '')).lower().startswith('youtube') and source_url:
-        add('plot', 'YouTube: ' + source_url)
+        plot.append('YouTube: ' + source_url)
+    add('plot', '\n\n'.join(plot))
     genre_result = info.get('_metube_genres') or {}
     for genre in genre_result.get('genres') or []:
         add('genre', genre)
@@ -425,6 +436,9 @@ class NFOPostProcessor(PostProcessor):
         self.genre_provider = PreferredGenres(
             self.musicbrainz, SongGenres(self.state_dir / 'song-genres' if self.state_dir else None),
             enabled=self.musicbrainz_enabled)
+        self.description_provider = SongDescription(
+            self.musicbrainz, self.state_dir / 'wikipedia-descriptions' if self.state_dir else None,
+            language=os.getenv('NFO_WIKIPEDIA_LANGUAGE', 'es'))
 
     def _safe(self, path):
         if (self.state_dir and self.within(str(self.state_dir), str(path))
@@ -449,23 +463,29 @@ class NFOPostProcessor(PostProcessor):
                 self.report_warning('IMVDb unavailable; writing generic NFO (' + _failure_code(error) + ')')
             if not video:
                 self.report_warning('No verified IMVDb match; writing generic NFO')
-            if os.getenv('NFO_GENRES_ENABLED', 'true').lower() in ('true', '1', 'on'):
-                artists = (video.get('artists') or []) if video else []
-                artist = artists[0].get('name') if artists else info.get('artist')
-                if not artist and info.get('artists'):
-                    artist = info['artists'][0]
-                if not artist:
-                    artist = (info.get('_metube_musicbrainz') or {}).get('artist')
-                title = video.get('song_title') if video else (info.get('track') or info.get('title'))
-                if artist and title and ' - ' in title:
-                    prefix, remainder = title.split(' - ', 1)
-                    if _normalized_name(prefix) == _normalized_name(artist):
-                        title = remainder
-                if artist and title:
+            artists = (video.get('artists') or []) if video else []
+            artist = artists[0].get('name') if artists else info.get('artist')
+            if not artist and info.get('artists'):
+                artist = info['artists'][0]
+            if not artist:
+                artist = (info.get('_metube_musicbrainz') or {}).get('artist')
+            title = video.get('song_title') if video else (info.get('track') or info.get('title'))
+            if artist and title and ' - ' in title:
+                prefix, remainder = title.split(' - ', 1)
+                if _normalized_name(prefix) == _normalized_name(artist):
+                    title = remainder
+            if artist and title:
+                if os.getenv('NFO_GENRES_ENABLED', 'true').lower() in ('true', '1', 'on'):
                     try:
                         info['_metube_genres'] = self.genre_provider.lookup(artist, title)
                     except Exception as error:
                         self.report_warning('Genre provider unavailable; omitting genre (' + _failure_code(error) + ')')
+                if (self.musicbrainz_enabled and
+                        os.getenv('NFO_WIKIPEDIA_ENABLED', 'true').lower() in ('true', '1', 'on')):
+                    try:
+                        info['_metube_description'] = self.description_provider.lookup(artist, title)
+                    except Exception as error:
+                        self.report_warning('Song description unavailable; omitting description (' + _failure_code(error) + ')')
             root = make_nfo(info, video)
             if self.poster:
                 try:

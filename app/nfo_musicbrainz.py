@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import tempfile
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from nfo_genres import CatalogRequests, SongGenres, normalized, song_title
 
@@ -18,13 +18,33 @@ def quoted(value):
     return '"' + str(value)[:200].replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+def wikipedia_relations(item):
+    qids, pages = set(), set()
+    for relation in item.get('relations') or []:
+        resource = str((relation.get('url') or {}).get('resource') or '')
+        parsed = urlsplit(resource)
+        if parsed.scheme not in ('http', 'https') or parsed.query:
+            continue
+        if (relation.get('type') == 'wikidata'
+                and parsed.netloc in ('www.wikidata.org', 'wikidata.org')
+                and re.fullmatch(r'/wiki/Q[1-9][0-9]*', parsed.path)):
+            qids.add(parsed.path.rsplit('/', 1)[1])
+        elif (relation.get('type') == 'wikipedia'
+                and parsed.netloc in ('es.wikipedia.org', 'en.wikipedia.org')
+                and parsed.path.startswith('/wiki/')):
+            pages.add('https://' + parsed.netloc + parsed.path)
+    if len(qids) > 1:
+        return None
+    return {'wikidata_ids': sorted(qids), 'wikipedia_urls': sorted(pages)} if qids or pages else None
+
+
 class MusicBrainzSongs(CatalogRequests):
     def __init__(self, cache_dir=None):
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.deadline = 0
 
     def _get(self, endpoint, **params):
-        if not re.fullmatch(r'(?:recording|release-group)(?:/' + MBID + r')?', endpoint):
+        if not re.fullmatch(r'(?:recording|release-group|work)(?:/' + MBID + r')?', endpoint):
             raise ValueError('Unsupported MusicBrainz endpoint')
         url = 'https://musicbrainz.org/ws/2/' + endpoint + '?' + urlencode(dict(params, fmt='json'))
         return self._request(url, 1.1, 'metube-musicbrainz-rate.lock')
@@ -128,6 +148,65 @@ class MusicBrainzSongs(CatalogRequests):
                     'match_basis': 'artist_and_base_song_title; version_not_verified'}
         return None
 
+    def _group_ids(self, artist, title, artist_id):
+        path = self._path('groups-v1', artist, title)
+        hit, value = self._read(path)
+        if hit:
+            return value or []
+        genre_hit, genre = self._read(self._path('genres-v1', artist, title))
+        if genre_hit and genre and genre.get('provider') == 'musicbrainz' and genre.get('catalog_entity') == 'release-group':
+            ids = [identifier for identifier in genre.get('catalog_ids') or []
+                   if re.fullmatch(MBID, str(identifier))]
+            if ids:
+                return self._save(path, ids[:2])
+        response = self._get('release-group', query='artist:' + quoted(artist) + ' AND releasegroup:' + quoted(title), limit=10)
+        groups = [item for item in response.get('release-groups') or []
+                  if normalized(song_title(item.get('title'))) == normalized(title)
+                  and item.get('primary-type') in ('Single', 'EP')
+                  and re.fullmatch(MBID, str(item.get('id') or ''))
+                  and any(a['id'] == artist_id for a in self._artist(item, artist))]
+        plain = [item for item in groups if normalized(item.get('title')) == normalized(title)]
+        ids = list(dict.fromkeys(item['id'] for item in plain or groups))[:2]
+        self._save(path, ids or None)
+        return ids
+
+    def wikipedia_links(self, artist, title, deadline=None):
+        artist, title = str(artist or '').strip(), song_title(title)
+        if not artist or not title:
+            return None
+        path = self._path('wikipedia-links-v1', artist, title)
+        hit, value = self._read(path)
+        if hit:
+            return value
+        self.deadline = min(deadline or float('inf'), time.monotonic() + 14)
+        song = self._find_song(artist, title)
+        if not song:
+            return self._save(path, None)
+        ids = self._group_ids(artist, title, song['artist_id'])
+        for identifier in ids:
+            response = self._get('release-group/' + identifier, inc='url-rels')
+            links = wikipedia_relations(response)
+            if links:
+                links.update(musicbrainz_entity='release-group', musicbrainz_id=identifier)
+                return self._save(path, links)
+        for identifier in song['recording_ids'][:1]:
+            response = self._get('recording/' + identifier, inc='url-rels+work-rels')
+            links = wikipedia_relations(response)
+            if links:
+                links.update(musicbrainz_entity='recording', musicbrainz_id=identifier)
+                return self._save(path, links)
+            for relation in response.get('relations') or []:
+                work = relation.get('work') or {}
+                if (relation.get('type') == 'performance'
+                        and normalized(song_title(work.get('title'))) == normalized(title)
+                        and re.fullmatch(MBID, str(work.get('id') or ''))):
+                    links = wikipedia_relations(self._get('work/' + work['id'], inc='url-rels'))
+                    if links:
+                        links.update(musicbrainz_entity='work', musicbrainz_id=work['id'])
+                        return self._save(path, links)
+                    break
+        return self._save(path, None)
+
     def lookup_genres(self, artist, title):
         artist, title = str(artist or '').strip(), song_title(title)
         if not artist or not title:
@@ -143,16 +222,9 @@ class MusicBrainzSongs(CatalogRequests):
         value = self._genres('recording', song['recording_ids'])
         if not value:
             # Song singles/EPs often carry genres absent on their recordings.
-            response = self._get('release-group', query='artist:' + quoted(artist) + ' AND releasegroup:' + quoted(title), limit=10)
-            ids = []
-            for item in response.get('release-groups') or []:
-                if (normalized(song_title(item.get('title'))) == normalized(title)
-                        and item.get('primary-type') in ('Single', 'EP')
-                        and re.fullmatch(MBID, str(item.get('id') or ''))
-                        and any(a['id'] == song['artist_id'] for a in self._artist(item, artist))):
-                    ids.append(item['id'])
+            ids = self._group_ids(artist, title, song['artist_id'])
             if ids:
-                value = self._genres('release-group', list(dict.fromkeys(ids)))
+                value = self._genres('release-group', ids)
         return self._save(path, value)
 
 

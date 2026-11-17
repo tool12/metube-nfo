@@ -210,4 +210,21 @@ Genre provenance retains all contributing catalog track IDs.
 MusicBrainz references: https://musicbrainz.org/doc/MusicBrainz_API and its rate
 limiting rules. A MusicBrainz artist/song match supplies folder identity and
 genre only: it does not replace IMVDb's exact YouTube source requirement for
-video credits, release year or premiere date. Wikipedia text is not yet fetched.
+video credits, release year or premiere date. Song descriptions use the Wikipedia article linked by the confirmed MusicBrainz
+song (Single/EP release group, then recording/work relationships), directly or
+through Wikidata. This enrichment also runs after an IMVDb match and independently
+of genre lookup. There is no free-text Wikipedia search. Spanish is preferred,
+with English as fallback. The introduction is bounded to 1,200 characters and
+includes attribution, article/license links, revision provenance and the YouTube
+URL in the Jellyfin plot. No linked article or a service failure leaves the
+YouTube-only plot intact. Description lookup has a 22-second total budget.
+
+NFO_WIKIPEDIA_ENABLED=false disables descriptions; NFO_WIKIPEDIA_LANGUAGE=en
+reverses the language preference. MUSICBRAINZ_ENABLED=false also disables these
+descriptions. No additional key is needed. Wikimedia requests use fixed API
+hosts and a shared 1.1-second rate limiter. Positive/empty description results
+are cached for seven days/one day under STATE_DIR/wikipedia-descriptions.
+Existing NFO are preserved; only new downloads receive the enrichment.
+
+References: https://www.mediawiki.org/wiki/Extension:TextExtracts and
+https://www.wikidata.org/wiki/Wikidata:Data_access .
