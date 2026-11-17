@@ -17,6 +17,7 @@ from datetime import date
 from html.parser import HTMLParser
 
 from yt_dlp.postprocessor.common import PostProcessor
+from nfo_genres import SongGenres
 
 log = logging.getLogger('ytdl')
 
@@ -272,6 +273,15 @@ def make_nfo(info, video=None):
         source_url = 'https://www.youtube.com/watch?v=' + str(identifier)
     add('source_url', source_url, provenance)
     add('source_title', info.get('_metube_source_title'), provenance)
+    if str(info.get('extractor_key', '')).lower().startswith('youtube') and source_url:
+        add('plot', 'YouTube: ' + source_url)
+    genre_result = info.get('_metube_genres') or {}
+    for genre in genre_result.get('genres') or []:
+        add('genre', genre)
+    if genre_result.get('catalog_id'):
+        add('genre_provider', genre_result.get('provider'), provenance)
+        add('genre_catalog_id', genre_result['catalog_id'], provenance)
+        add('genre_match_basis', genre_result.get('match_basis'), provenance)
     if video:
         year = str(video.get('year') or '')
         if re.fullmatch(r'\d{4}', year):
@@ -290,7 +300,24 @@ def make_nfo(info, video=None):
             add('artist', artist.get('name'))
         for director in video.get('directors') or []:
             add('director', director.get('entity_name'))
+        for credit in (video.get('credits') or {}).get('crew') or []:
+            if credit.get('position_code') == 'label':
+                name = credit.get('entity_name')
+                if name and name not in [n.text for n in root.findall('studio')]:
+                    add('studio', name)
+        seen_cast = set()
+        for credit in ((video.get('credits') or {}).get('cast') or [])[:100]:
+            name = str(credit.get('entity_name') or '').strip()
+            if not name or name.casefold() in seen_cast:
+                continue
+            seen_cast.add(name.casefold())
+            actor = ET.SubElement(root, 'actor')
+            add('name', name, actor)
+            roles = [r.strip() for r in credit.get('cast_roles') or [] if isinstance(r, str) and r.strip()]
+            if roles:
+                add('role', ', '.join(roles), actor)
         if video.get('id'):
+            add('imvdbid', video['id'])
             ET.SubElement(root, 'uniqueid', type='imvdb', default='false').text = str(video['id'])
         if imvdb_video_path(video.get('url', '')):
             add('imvdb_url', video['url'], provenance)
@@ -374,6 +401,8 @@ class NFOPostProcessor(PostProcessor):
             search_enabled=os.getenv('IMVDB_SEARCH_ENABLED', 'false').lower() in ('true', '1', 'on'),
             web_search_enabled=os.getenv('IMVDB_WEB_SEARCH_ENABLED', 'true').lower() in ('true', '1', 'on'))
         self.state_dir = Path(state_dir).resolve() if state_dir else None
+        self.genre_provider = SongGenres(
+            self.state_dir / 'song-genres' if self.state_dir else None)
 
     def _safe(self, path):
         if (self.state_dir and self.within(str(self.state_dir), str(path))
@@ -398,6 +427,21 @@ class NFOPostProcessor(PostProcessor):
                 self.report_warning('IMVDb unavailable; writing generic NFO (' + _failure_code(error) + ')')
             if not video:
                 self.report_warning('No verified IMVDb match; writing generic NFO')
+            if os.getenv('NFO_GENRES_ENABLED', 'true').lower() in ('true', '1', 'on'):
+                artists = (video.get('artists') or []) if video else []
+                artist = artists[0].get('name') if artists else info.get('artist')
+                if not artist and info.get('artists'):
+                    artist = info['artists'][0]
+                title = video.get('song_title') if video else (info.get('track') or info.get('title'))
+                if artist and title and ' - ' in title:
+                    prefix, remainder = title.split(' - ', 1)
+                    if _normalized_name(prefix) == _normalized_name(artist):
+                        title = remainder
+                if artist and title:
+                    try:
+                        info['_metube_genres'] = self.genre_provider.lookup(artist, title)
+                    except Exception as error:
+                        self.report_warning('Genre provider unavailable; omitting genre (' + _failure_code(error) + ')')
             root = make_nfo(info, video)
             if self.poster:
                 try:

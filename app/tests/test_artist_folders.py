@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -110,3 +111,8 @@ def test_new_artist_directory_and_nfo_follow_real_ytdlp_pipeline(tmp_path, monke
     assert (tmp_path / 'New Artist' / 'Song.mp4').exists()
     assert (tmp_path / 'New Artist' / 'Song.nfo').exists()
     provider.lookup.assert_called_once()
+
+
+@pytest.fixture(autouse=True)
+def disable_live_genre_network(monkeypatch):
+    monkeypatch.setenv('NFO_GENRES_ENABLED', 'false')

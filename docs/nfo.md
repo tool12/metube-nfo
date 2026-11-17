@@ -159,7 +159,7 @@ exception types and numeric codes, never exception messages or request headers.
 ## Clean player metadata
 
 New NFO files omit the full YouTube description, promotional links, lyrics and
-YouTube tags. They keep title, structured artists, duration, available verified
+YouTube tags. The summary contains only the original YouTube URL. They keep title, structured artists, duration, available verified
 premiere/year and director, local artwork and provider IDs. Original URLs,
 original display title and IMVDb catalog references live inside a custom
 `<metube>` provenance element instead of player-visible `<tag>` fields. This
@@ -170,3 +170,26 @@ With the default output template the files are video, NFO and
 `<video-stem>-poster.jpg`. An explicitly configured thumbnail template is
 respected and may intentionally result in an additional thumbnail. Existing
 files are neither deleted nor rewritten; test a new download after updating.
+
+## Studio, cast and base-song genre
+
+IMVDb record-label credits populate `studio`; its named cast populates `actor`
+with a role only when supplied. Duplicate names are omitted. The original
+YouTube URL is the only `plot` content. An explicit `imvdbid` accompanies the
+provider unique ID for NFO readers supporting provider-specific elements.
+
+Genre uses the public Apple iTunes Search API, matching structured artist and
+base song title, ignoring bracketed remix/live/edit/official/featured-credit
+qualifiers. An unqualified base-song entry is preferred. This genre does not
+claim to describe the exact video/remix. Disagreeing candidate genres are left
+empty. No artist-only guessing. No artwork, previews or audio are taken from
+Apple. Provenance is stored inside `metube`.
+
+No additional API key is required. Requests are serialized across download
+processes at least 3.1 seconds apart, with a bounded lookup budget. Positive
+results are cached seven days and empty results one day in STATE_DIR/song-genres.
+Errors leave the rest of the NFO intact. Set `NFO_GENRES_ENABLED=false` to disable.
+Existing NFO files remain untouched. Test new downloads after image updates.
+
+References: https://performance-partners.apple.com/search-api and
+https://jellyfin.org/docs/general/server/metadata/nfo/ .
