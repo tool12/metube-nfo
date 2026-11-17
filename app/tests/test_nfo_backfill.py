@@ -69,3 +69,12 @@ def test_provenance_container_survives_repeated_backfill():
     merged = merge_missing(merge_missing(old, proposed), proposed)
     assert len(merged.findall('metube')) == 1
     assert merged.findtext('metube/source_url') == 'original'
+
+
+
+def test_cast_merge_keeps_roles_and_is_idempotent():
+    old = ET.fromstring('<musicvideo><actor><name>Existing</name><role>Custom</role></actor></musicvideo>')
+    proposed = ET.fromstring('<musicvideo><actor><name>Existing</name><role>Other</role></actor><actor><name>New</name><role>Dancer</role></actor></musicvideo>')
+    merged = merge_missing(merge_missing(old, proposed), proposed)
+    assert len(merged.findall('actor')) == 2
+    assert [n.findtext('role') for n in merged.findall('actor')] == ['Custom', 'Dancer']

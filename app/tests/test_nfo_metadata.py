@@ -27,7 +27,7 @@ def test_generic_does_not_mislabel_upload_as_premiere():
     assert root.tag == 'musicvideo'
     assert root.find('premiered') is None
     assert root.find('year') is None
-    assert root.find('plot') is None
+    assert root.findtext('plot') == 'YouTube: ' + INFO['webpage_url']
     assert root.findall('tag') == []
     assert root.findtext('metube/source_url') == INFO['webpage_url']
     assert root.findtext('uniqueid') == INFO['id']
@@ -316,7 +316,7 @@ def test_promotional_content_is_omitted_but_provenance_preserved(verified):
                 tags=['spam', 'other songs'], channel='Channel', upload_date='20260101',
                 _metube_source_title='Original display title')
     root = make_nfo(info, dict(VIDEO, url='https://imvdb.com/video/metallica/enter-sandman') if verified else None)
-    assert root.find('plot') is None
+    assert root.findtext('plot') == 'YouTube: ' + INFO['webpage_url']
     assert root.findall('tag') == []
     assert root.findtext('metube/source_url') == INFO['webpage_url']
     assert root.findtext('metube/source_title') == 'Original display title'
@@ -360,3 +360,42 @@ def test_explicit_thumbnail_template_is_preserved():
     params = {'outtmpl': {'default': '%(title)s.%(ext)s', 'thumbnail': 'user-cover.%(ext)s'}}
     download._set_nfo_thumbnail_template(params)
     assert params['outtmpl']['thumbnail'] == 'user-cover.%(ext)s'
+
+
+@pytest.fixture(autouse=True)
+def disable_live_genre_network(monkeypatch):
+    monkeypatch.setenv('NFO_GENRES_ENABLED', 'false')
+
+
+
+def test_studio_cast_youtube_summary_and_song_genre_are_written():
+    video = dict(VIDEO, credits={'crew': [
+        {'position_code': 'label', 'entity_name': 'Atlantic Records'},
+        {'position_code': 'label', 'entity_name': 'Atlantic Records'},
+        {'position_code': 'edit', 'entity_name': 'Editor'}],
+        'cast': [{'entity_name': 'Participant', 'cast_roles': ['Dancer']},
+                 {'entity_name': 'Participant', 'cast_roles': []},
+                 {'entity_name': 'Other Participant', 'cast_roles': []}]})
+    info = dict(INFO, _metube_genres={'genres': ['Pop'], 'provider': 'apple_itunes',
+                                    'catalog_id': '123', 'match_basis': 'base_song'})
+    root = make_nfo(info, video)
+    assert [n.text for n in root.findall('studio')] == ['Atlantic Records']
+    assert [n.findtext('name') for n in root.findall('actor')] == ['Participant', 'Other Participant']
+    assert root.findtext('actor/role') == 'Dancer'
+    assert root.findtext('plot') == 'YouTube: ' + INFO['webpage_url']
+    assert root.findtext('genre') == 'Pop'
+    assert root.findtext('metube/genre_provider') == 'apple_itunes'
+    assert root.findtext('imvdbid') == '123'
+    assert root.findall('tag') == []
+
+
+def test_genre_failure_never_prevents_nfo(tmp_path, monkeypatch):
+    video = tmp_path / 'video.mp4'
+    video.write_bytes(b'video')
+    pp = processor(tmp_path, monkeypatch, poster=False)
+    pp.provider.lookup = Mock(return_value=None)
+    pp.genre_provider.lookup = Mock(side_effect=TimeoutError('private message'))
+    monkeypatch.setenv('NFO_GENRES_ENABLED', 'true')
+    pp.run(dict(INFO, artist='Artist', track='Song', filepath=str(video)))
+    assert ET.parse(video.with_suffix('.nfo')).find('genre') is None
+    assert 'private message' not in str(pp.report_warning.call_args_list)
