@@ -69,6 +69,17 @@ describe('DownloadsService', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
+  it('sends the selected NFO language and defaults to Spanish', () => {
+    service.add({ ...basePayload(), nfoLanguage: 'en' }).subscribe();
+    let req = httpMock.expectOne('add');
+    expect(req.request.body.nfo_language).toBe('en');
+    req.flush({ status: 'ok' });
+    service.add(basePayload()).subscribe();
+    req = httpMock.expectOne('add');
+    expect(req.request.body.nfo_language).toBe('es');
+    req.flush({ status: 'ok' });
+  });
+
   it('add() posts snake_case fields matching backend', () => {
     service.add(basePayload()).subscribe();
     const req = httpMock.expectOne('add');

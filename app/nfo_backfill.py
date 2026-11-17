@@ -196,7 +196,7 @@ def plan_current_nfo(video_path, provider, *, genres=None, description=None,
                     info[field] = service.lookup(artist, song)
                 except Exception as error:
                     errors.append(name + ': ' + _failure_code(error))
-    proposed = make_nfo(info, video)
+    proposed = make_nfo(info, video, language=getattr(description, 'language', 'es'))
     provenance = proposed.find('metube')
     ET.SubElement(provenance, 'backfill_match_basis').text = basis
     # Catalog sources without an original ID remain labelled references.

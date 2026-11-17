@@ -3,8 +3,25 @@
 This fork adds an optional NFO selector to MeTube's video form. Select Kodi,
 Jellyfin or Emby and optionally save local artwork. The current profiles share
 a common XML subset; interoperability still needs checking in your own player.
-The browser remembers the NFO profile and artwork selection. They survive queue
+The browser remembers the NFO profile, language and artwork selection. They survive queue
 retries and are carried into new subscription downloads.
+
+## NFO language
+
+The NFO section uses Spanish-first bilingual labels. Choose **Español / Spanish**
+or **Inglés / English** under **Idioma del NFO / NFO language**. New browser
+settings and requests without `nfo_language` default to `es`. The choice is
+saved in browser settings and copied to each download, playlist item, retry and
+new subscription. Existing NFO files are preserved.
+
+The selected language controls the preferred Wikipedia introduction and generated
+attribution and artist filtering tags (`Artista:` / `Artist:`). If the linked
+article is unavailable in that language, the other language is tried. Song titles,
+artist names, credits and catalog genres retain their original names; this is
+not automatic translation. Provenance records both `nfo_language` and the actual
+`description_language` so a fallback remains visible. The server variable
+`NFO_WIKIPEDIA_LANGUAGE` remains the fallback for direct postprocessor/backfill
+usage; an explicit per-download language takes precedence.
 
 ## Identification and output
 
@@ -28,7 +45,7 @@ When IMVDb identifies the recording, its song title is used as the filename's
 title. Otherwise a structured extractor track title is used if present. This
 avoids repeating an artist prefix that can make Jellyfin group different songs
 as versions in a shared artist folder. The original source title is retained
-as an NFO reference. Unstructured titles are not split or guessed.
+as an NFO reference. When a resolved artist prefix matches, it and explicit official-video or quality markers are removed; musical qualifiers such as Remix and Live are preserved.
 
 Playlist/channel grouping templates are bypassed for videos when artist folders
 are enabled, so batch downloads reuse the same artist directory in the selected

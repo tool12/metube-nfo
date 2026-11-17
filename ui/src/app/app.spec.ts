@@ -39,6 +39,8 @@ function testCatalog(): FormatCatalog {
         {
           id: 'video',
           text: 'Video',
+          nfo_profile: choice('none', ['none', 'No generar / Do not generate'], ['jellyfin', 'Jellyfin']),
+          nfo_language: choice('es', ['es', 'Español / Spanish'], ['en', 'Inglés / English']),
           codec: choice('auto', ['auto', 'Auto'], ['h264', 'H.264'], ['h265', 'H.265 (HEVC)']),
           format: {
             default: 'any',
@@ -221,6 +223,30 @@ describe('App', () => {
         },
       ],
     }).compileComponents();
+  });
+
+  it('defaults NFO language to Spanish and remembers English', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    expect(app.nfoLanguage).toBe('es');
+    app.nfoProfile = 'jellyfin';
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Idioma del NFO / NFO language');
+    expect(fixture.nativeElement.textContent).toContain('Guardar carátula del video / Save video cover');
+    app.nfoLanguage = 'en';
+    app.nfoChanged();
+    expect(app['buildAddPayload']().nfoLanguage).toBe('en');
+    const restored = TestBed.createComponent(App);
+    restored.detectChanges();
+    expect(restored.componentInstance.nfoLanguage).toBe('en');
+  });
+
+  it('replaces an unsupported saved NFO language with Spanish', () => {
+    TestBed.inject(SettingsStore).set('metube_nfo_language', 'fr');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.nfoLanguage).toBe('es');
   });
 
   it('should create the app', () => {

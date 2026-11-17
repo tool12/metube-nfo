@@ -12,7 +12,7 @@ import dl_formats
 import format_catalog
 from format_catalog import CATALOG, InvalidOption, resolve_selection
 
-_CHOICE_FIELDS = ('codec', 'format', 'audio_tags', 'subtitle_mode', 'subtitle_language', 'nfo_profile')
+_CHOICE_FIELDS = ('codec', 'format', 'audio_tags', 'subtitle_mode', 'subtitle_language', 'nfo_profile', 'nfo_language')
 
 
 def _choices():

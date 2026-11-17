@@ -92,6 +92,8 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
   nfoImvdbId = '';
   nfoProfile = 'none';
   nfoPoster = true;
+  nfoLanguage = 'es';
+  nfoLanguages: Option[] = [];
   nfoProfiles: Option[] = [];
   audioTags: string;
   chapterTemplate: string;
@@ -178,6 +180,7 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
     this.sponsorblock = this.settings.get('metube_sponsorblock') === 'true';
     this.nfoProfile = this.settings.get('metube_nfo_profile') || 'none';
     this.nfoPoster = this.settings.get('metube_nfo_poster') !== 'false';
+    this.nfoLanguage = this.settings.get('metube_nfo_language') || 'es';
     this.audioTags = this.settings.get('metube_audio_tags');
     // Will be set from backend configuration, use empty string as placeholder
     this.chapterTemplate = this.settings.get('metube_chapter_template') || '';
@@ -494,6 +497,7 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
 
   nfoChanged() {
     this.settings.set('metube_nfo_profile', this.nfoProfile);
+    this.settings.set('metube_nfo_language', this.nfoLanguage);
     this.settings.set('metube_nfo_poster', this.nfoPoster ? 'true' : 'false');
   }
 
@@ -637,6 +641,9 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
     const audio = this.downloadTypes.find(t => t.audio_tags);
     const captions = this.downloadTypes.find(t => t.subtitle_mode || t.subtitle_language);
     const nfo = this.downloadTypes.find(t => t.nfo_profile)?.nfo_profile;
+    const language = this.downloadTypes.find(t => t.nfo_language)?.nfo_language;
+    this.nfoLanguages = language?.options ?? [];
+    this.nfoLanguage = language ? this.pick(language, this.nfoLanguage) : 'es';
     this.nfoProfiles = nfo?.options ?? [];
     this.nfoProfile = nfo ? this.pick(nfo, this.nfoProfile) : 'none';
     this.audioTagsOptions = audio?.audio_tags?.options ?? [];
@@ -743,6 +750,7 @@ export class App implements AfterViewInit, OnInit, OnDestroy {
       splitByChapters: overrides.splitByChapters ?? this.splitByChapters,
       nfoImvdbId: overrides.nfoImvdbId ?? this.nfoImvdbId,
       nfoProfile: overrides.nfoProfile ?? this.nfoProfile,
+      nfoLanguage: overrides.nfoLanguage ?? this.nfoLanguage,
       nfoPoster: overrides.nfoPoster ?? this.nfoPoster,
       sponsorblock: overrides.sponsorblock ?? this.sponsorblock,
       audioTags: overrides.audioTags ?? this.audioTags,

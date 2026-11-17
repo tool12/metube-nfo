@@ -269,7 +269,7 @@
           @if (currentType()?.nfo_profile) {
           <div class="col-12 mt-3">
             <div class="input-group">
-              <label class="input-group-text" for="nfo-profile">Metadatos NFO</label>
+              <label class="input-group-text" for="nfo-profile">Metadatos NFO / NFO metadata</label>
               <select id="nfo-profile" name="nfoProfile" class="form-select"
                 [(ngModel)]="nfoProfile" (ngModelChange)="nfoChanged()"
                 [disabled]="addInProgress || subscribeInProgress || downloads.loading">
@@ -279,18 +279,29 @@
               </select>
             </div>
             @if (nfoProfile !== 'none') {
+              <div class="input-group mt-2">
+                <label class="input-group-text" for="nfo-language">Idioma del NFO / NFO language</label>
+                <select id="nfo-language" name="nfoLanguage" class="form-select"
+                  [(ngModel)]="nfoLanguage" (ngModelChange)="nfoChanged()"
+                  [disabled]="addInProgress || subscribeInProgress || downloads.loading">
+                  @for (language of nfoLanguages; track language.id) {
+                    <option [value]="language.id">{{ language.text }}</option>
+                  }
+                </select>
+              </div>
+              <small class="text-body-secondary">Idioma del resumen y textos generados; si falta el artículo, se intenta el otro idioma. / Summary and generated text language; the other language is tried if the article is unavailable.</small>
               <div class="form-check mt-2">
                 <input id="nfo-poster" name="nfoPoster" class="form-check-input" type="checkbox"
                   [(ngModel)]="nfoPoster" (ngModelChange)="nfoChanged()"
                   [disabled]="addInProgress || subscribeInProgress || downloads.loading">
-                <label class="form-check-label" for="nfo-poster">Guardar carátula del video</label>
+                <label class="form-check-label" for="nfo-poster">Guardar carátula del video / Save video cover</label>
               </div>
-              <label for="nfo-imvdb-id" class="form-label mt-2">ID o enlace del videoclip en IMVDb (opcional)</label>
+              <label for="nfo-imvdb-id" class="form-label mt-2">ID o enlace de IMVDb (opcional) / IMVDb ID or link (optional)</label>
               <input id="nfo-imvdb-id" name="nfoImvdbId" class="form-control" type="text"
-                placeholder="Automático si se deja vacío"
+                placeholder="Automático si se deja vacío / Automatic when blank"
                 [(ngModel)]="nfoImvdbId"
                 [disabled]="addInProgress || subscribeInProgress || downloads.loading">
-              <small class="text-body-secondary">Se busca la ficha pública de IMVDb y se consulta su API. Solo se usa si coincide el enlace de YouTube; si no, se genera un NFO genérico. La selección de NFO y carátula se recuerda.</small>
+              <small class="text-body-secondary">Se consulta IMVDb y se verifica el enlace de YouTube; sin coincidencia se genera un NFO genérico. Se recuerdan formato, idioma y carátula. / IMVDb is checked against the YouTube link; without a match a generic NFO is created. Profile, language and cover choices are remembered.</small>
             }
           </div>
           }

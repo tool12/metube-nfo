@@ -158,6 +158,10 @@ def test_request_validation_and_subscription_keep_nfo_options():
                    nfo_profile='kodi', nfo_poster=False, nfo_imvdb_id='101313349910')
     _, options = main.parse_download_options(request)
     assert options.nfo_profile == 'kodi'
+    assert options.nfo_language == 'es'
+    assert main.parse_download_options(dict(request, nfo_language='en'))[1].nfo_language == 'en'
+    with pytest.raises(web.HTTPBadRequest):
+        main.parse_download_options(dict(request, nfo_language='fr'))
     assert options.nfo_poster is False
     assert options.nfo_imvdb_id == '101313349910'
     with pytest.raises(web.HTTPBadRequest):
@@ -493,3 +497,37 @@ def test_artist_filter_tags_preserve_artists_and_deduplicate(verified):
     assert [n.text for n in root.findall('artist')] == info['artists']
     assert [n.text for n in root.findall('tag')] == ['Artista: Linkin Park', 'Artista: Guest & Artist']
     assert 'Original <description>' not in root.findtext('plot')
+
+
+@pytest.mark.parametrize('language,prefix,license_label', [('es', 'Artista: ', 'Licencia:'), ('en', 'Artist: ', 'License:')])
+def test_nfo_generated_text_language(language, prefix, license_label):
+    info = dict(INFO, _metube_description={'text': 'Song history.', 'title': 'Song',
+                'url': 'https://en.wikipedia.org/wiki/Song', 'language': 'en',
+                'license_url': 'https://creativecommons.org/licenses/by-sa/4.0/'})
+    root = make_nfo(info, VIDEO, language=language)
+    assert root.findtext('tag') == prefix + 'Metallica'
+    assert license_label in root.findtext('plot')
+    assert INFO['webpage_url'] in root.findtext('plot')
+    assert root.findtext('metube/nfo_language') == language
+    assert root.findtext('metube/description_language') == 'en'
+    assert root.findtext('title') == 'Enter Sandman'
+
+
+def test_per_download_language_overrides_server_fallback(tmp_path, monkeypatch):
+    monkeypatch.setenv('NFO_WIKIPEDIA_LANGUAGE', 'en')
+    pp = NFOPostProcessor(None, roots=[str(tmp_path)], profile='jellyfin', poster=False,
+                          within=_is_within_directory, language='es')
+    assert pp.language == 'es'
+    assert pp.description_provider.language == 'es'
+
+
+def test_language_survives_retry_and_subscription():
+    from subscriptions import SubscriptionInfo, _subscription_to_record, _subscription_from_record
+    options = DownloadOptions(nfo_language='en')
+    info = DownloadInfo(id='i', title='t', url='u', error=None, entry=None, **options.download_info_fields())
+    assert DownloadOptions.from_info(info).nfo_language == 'en'
+    sub = SubscriptionInfo(id='s', name='test', url='u', nfo_language='en')
+    record = _subscription_to_record(sub)
+    assert _subscription_from_record(record).download_options().nfo_language == 'en'
+    record.pop('nfo_language')
+    assert _subscription_from_record(record).download_options().nfo_language == 'es'

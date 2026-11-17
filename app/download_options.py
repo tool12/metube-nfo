@@ -39,6 +39,7 @@ class DownloadOptions:
     clip_end: Optional[float] = None
     nfo_imvdb_id: str = ''
     nfo_profile: str = 'none'
+    nfo_language: str = 'es'
     nfo_poster: bool = True
     sponsorblock: bool = False
     audio_tags: str = 'with_cover'

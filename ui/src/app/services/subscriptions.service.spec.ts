@@ -61,6 +61,17 @@ describe('SubscriptionsService', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
+  it('sends the selected NFO language and defaults to Spanish', () => {
+    service.subscribe({ ...basePayload(), nfoLanguage: 'en' }).subscribe();
+    let req = httpMock.expectOne('subscribe');
+    expect(req.request.body.nfo_language).toBe('en');
+    req.flush({ status: 'ok' });
+    service.subscribe(basePayload()).subscribe();
+    req = httpMock.expectOne('subscribe');
+    expect(req.request.body.nfo_language).toBe('es');
+    req.flush({ status: 'ok' });
+  });
+
   it('subscribe() carries the sponsorblock flag', () => {
     service.subscribe({ ...basePayload(), sponsorblock: true }).subscribe();
     const req = httpMock.expectOne('subscribe');

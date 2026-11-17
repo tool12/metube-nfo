@@ -989,6 +989,10 @@ def parse_download_options(post: dict) -> tuple[str, DownloadOptions]:
     auto_start = _bool_field(post, 'auto_start', True)
     split_by_chapters = _bool_field(post, 'split_by_chapters', False)
     nfo_profile = str(post.get('nfo_profile') or 'none').strip().lower()
+    language_choice = format_catalog.download_type('video')['nfo_language']
+    nfo_language = str(post.get('nfo_language') or language_choice['default']).strip().lower()
+    if nfo_language not in {item['id'] for item in language_choice['options']}:
+        raise web.HTTPBadRequest(reason='Invalid nfo_language')
     nfo_poster = _bool_field(post, 'nfo_poster', True)
     nfo_imvdb_id = _str_field(post, 'nfo_imvdb_id', '').strip()
     numeric_imvdb_id = nfo_imvdb_id.isascii() and nfo_imvdb_id.isdecimal() and len(nfo_imvdb_id) <= 20
@@ -1083,6 +1087,7 @@ def parse_download_options(post: dict) -> tuple[str, DownloadOptions]:
         split_by_chapters=split_by_chapters,
         nfo_imvdb_id=nfo_imvdb_id,
         nfo_profile=nfo_profile,
+        nfo_language=nfo_language,
         nfo_poster=nfo_poster,
         sponsorblock=sponsorblock,
         audio_tags=audio_tags,
@@ -1217,6 +1222,7 @@ async def subscribe(request):
         ytdl_options_presets=list(options.ytdl_options_presets),
         ytdl_options_overrides=options.ytdl_options_overrides,
         nfo_profile=options.nfo_profile,
+        nfo_language=options.nfo_language,
         nfo_poster=options.nfo_poster,
         sponsorblock=options.sponsorblock,
         audio_tags=options.audio_tags,
