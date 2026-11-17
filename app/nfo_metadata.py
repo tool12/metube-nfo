@@ -247,14 +247,13 @@ def make_nfo(info, video=None):
     """Music-video sidecar, with generic source fields when identification fails."""
     root = ET.Element('musicvideo')
 
-    def add(name, value):
+    def add(name, value, parent=None):
         if value is not None and str(value).strip():
             # XML 1.0 excludes control characters sometimes present in descriptions.
             text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]', '', str(value))
-            ET.SubElement(root, name).text = text
+            ET.SubElement(root if parent is None else parent, name).text = text
 
     add('title', video.get('song_title') if video else info.get('title'))
-    add('plot', info.get('description'))
     if not video:
         artists = info.get('artists') or ([info['artist']] if info.get('artist') else [])
         for artist in artists:
@@ -265,18 +264,14 @@ def make_nfo(info, video=None):
     if identifier:
         element = ET.SubElement(root, 'uniqueid', type=str(info.get('extractor_key') or 'source').lower(), default='true')
         element.text = str(identifier)
-    # Keep upload date explicitly labelled; never call it the original premiere.
+    # Provenance is deliberately separate from player-visible plot/tags.
+    provenance = ET.SubElement(root, 'metube')
+    add('metadata_source', 'imvdb' if video else 'original', provenance)
     source_url = info.get('webpage_url')
     if not source_url and str(info.get('extractor_key', '')).lower() == 'youtube' and identifier:
         source_url = 'https://www.youtube.com/watch?v=' + str(identifier)
-    for name, value in [('Source URL', source_url),
-                        ('Source title', info.get('_metube_source_title')),
-                        ('Channel', info.get('channel') or info.get('uploader')),
-                        ('YouTube upload date', info.get('upload_date'))]:
-        if value:
-            add('tag', f'{name}: {value}')
-    for tag in (info.get('tags') or [])[:50]:
-        add('tag', tag)
+    add('source_url', source_url, provenance)
+    add('source_title', info.get('_metube_source_title'), provenance)
     if video:
         year = str(video.get('year') or '')
         if re.fullmatch(r'\d{4}', year):
@@ -295,15 +290,12 @@ def make_nfo(info, video=None):
             add('artist', artist.get('name'))
         for director in video.get('directors') or []:
             add('director', director.get('entity_name'))
-        add('tag', 'Metadata source: IMVDb ' + str(video.get('id', '')))
         if video.get('id'):
             ET.SubElement(root, 'uniqueid', type='imvdb', default='false').text = str(video['id'])
         if imvdb_video_path(video.get('url', '')):
-            add('tag', 'IMVDb page: ' + video['url'])
+            add('imvdb_url', video['url'], provenance)
         for source_id in youtube_reference_ids(video):
-            add('tag', 'YouTube reference from IMVDb: https://www.youtube.com/watch?v=' + source_id)
-    else:
-        add('tag', 'Metadata source: original video (generic fallback)')
+            add('youtube_reference', 'https://www.youtube.com/watch?v=' + source_id, provenance)
     ET.indent(root)
     return root
 

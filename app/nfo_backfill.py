@@ -24,6 +24,10 @@ def merge_missing(existing, proposed):
     result = deepcopy(existing) if existing is not None else ET.Element(proposed.tag)
     original_values = {n.tag for n in result if n.text and n.text.strip()}
     for node in proposed:
+        if node.tag == 'metube':
+            if result.find('metube') is None:
+                result.append(deepcopy(node))
+            continue
         if node.tag == 'tag':
             present = any(n.text == node.text for n in result.findall('tag'))
         elif node.tag == 'uniqueid':

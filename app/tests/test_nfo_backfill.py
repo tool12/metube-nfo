@@ -42,7 +42,7 @@ def test_plan_is_read_only_and_apply_backs_up_exact_original(tmp_path):
     assert 'not verified' in report['match_basis']
     root = ET.fromstring(payload)
     assert root.find("uniqueid[@type='youtube']") is None
-    assert any('youtube.com/watch?v=' in (n.text or '') for n in root.findall('tag'))
+    assert any('youtube.com/watch?v=' in (n.text or '') for n in root.findall('metube/youtube_reference'))
     backup = apply_nfo(planned, payload, tmp_path)
     assert backup.read_bytes() == original
     assert ET.parse(target).findtext('year') == '2001'
@@ -60,3 +60,12 @@ def test_title_artist_search_does_not_take_first_unrelated_result():
     provider._get = Mock(side_effect=[{'results': [{'id': 123}]},
                                      {'song_title': 'Other song', 'artists': [{'name': 'Artist'}]}])
     assert provider.find_by_artist_title('Artist', 'Song') is None
+
+
+
+def test_provenance_container_survives_repeated_backfill():
+    old = ET.fromstring('<musicvideo><title>Song</title></musicvideo>')
+    proposed = ET.fromstring('<musicvideo><metube><source_url>original</source_url></metube></musicvideo>')
+    merged = merge_missing(merge_missing(old, proposed), proposed)
+    assert len(merged.findall('metube')) == 1
+    assert merged.findtext('metube/source_url') == 'original'

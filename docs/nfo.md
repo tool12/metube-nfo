@@ -146,11 +146,26 @@ Sources: [IMVDb API](https://imvdb.com/developers/api),
 
 With NFO artwork enabled, yt-dlp converts the downloaded thumbnail to real JPEG
 using FFmpeg before downloading the video. The NFO references a local
-`<video-stem>-poster.jpg`. An additional `<video-stem>.jpg` thumbnail may remain;
-existing user artwork is preserved. This applies to new downloads only.
+`<video-stem>-poster.jpg`. The generated thumbnail uses the final poster name, avoiding a duplicate;
+existing user artwork and explicitly configured thumbnail templates are preserved. This applies to new downloads only.
 
 NFSv4 ACL storage can permit file creation while rejecting chmod. For EPERM,
 ENOTSUP or ENOSYS, NFO publication retains the inherited ACL/restricted temporary
 file permissions instead of discarding the complete XML. Other storage errors
 still stop NFO publication and leave the video intact. Diagnostic warnings report
 exception types and numeric codes, never exception messages or request headers.
+
+## Clean player metadata
+
+New NFO files omit the full YouTube description, promotional links, lyrics and
+YouTube tags. They keep title, structured artists, duration, available verified
+premiere/year and director, local artwork and provider IDs. Original URLs,
+original display title and IMVDb catalog references live inside a custom
+`<metube>` provenance element instead of player-visible `<tag>` fields. This
+extension preserves traceability; media players may ignore it. The YouTube
+`uniqueid` is retained. Generic fallback does not invent missing credits/dates.
+
+With the default output template the files are video, NFO and
+`<video-stem>-poster.jpg`. An explicitly configured thumbnail template is
+respected and may intentionally result in an additional thumbnail. Existing
+files are neither deleted nor rewritten; test a new download after updating.

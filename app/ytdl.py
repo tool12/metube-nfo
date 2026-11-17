@@ -980,6 +980,16 @@ class Download:
 
         return put_status_postprocessor
 
+    def _set_nfo_thumbnail_template(self, params):
+        if (getattr(self.info, 'download_type', '') == 'video'
+                and getattr(self.info, 'nfo_profile', 'none') != 'none'
+                and self.info.nfo_poster
+                and 'thumbnail' not in _merge_option_dict({}, self.ytdl_opts.get('outtmpl'), str_key='default')):
+            # Write the generated image to its final poster name. Preserve
+            # explicitly requested thumbnail paths and existing user files.
+            params['outtmpl']['thumbnail'] = (
+                os.path.splitext(params['outtmpl']['default'])[0] + '-poster.%(ext)s')
+
     def _make_youtube_dl(self, params):
         ydl = _ConfinedYoutubeDL(
             params=params,
@@ -1086,6 +1096,7 @@ class Download:
                     template = ytdl_params['outtmpl'][kind]
                     directory, filename = os.path.split(template)
                     ytdl_params['outtmpl'][kind] = os.path.join(directory, '%(metube_artist)s', filename)
+            self._set_nfo_thumbnail_template(ytdl_params)
             # Set after the ytdl_opts merge: the status reporting and failure
             # messages depend on these, so user options must not replace them.
             ytdl_params['progress_hooks'] = [put_status]
