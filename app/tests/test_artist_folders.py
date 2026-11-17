@@ -155,3 +155,50 @@ def test_musicbrainz_artist_remains_confined(tmp_path):
     _, info = pp.run({'title': 'Unknown - Song'})
     assert '/' not in info['metube_artist']
     assert '..' not in info['metube_artist']
+
+
+@pytest.mark.parametrize('separator', [' - ', ' – ', ' — '])
+def test_generic_artist_title_is_cleaned_before_filename_and_nfo(tmp_path, separator):
+    pp = preprocessor(tmp_path)
+    original = 'The Offspring' + separator + "The Kids Aren't Alright (Official Music Video)"
+    _, info = pp.run({'title': original, 'artist': 'The Offspring'})
+    assert info['title'] == "The Kids Aren't Alright"
+    assert info['_metube_source_title'] == original
+    assert info['metube_artist'] == 'The Offspring'
+    from nfo_metadata import make_nfo
+    root = make_nfo(info)
+    assert root.findtext('title') == "The Kids Aren't Alright"
+    assert root.findtext('metube/source_title') == original
+
+
+def test_musicbrainz_artist_also_cleans_generic_filename(tmp_path):
+    pp = preprocessor(tmp_path)
+    pp.musicbrainz = Mock()
+    pp.musicbrainz.resolve_artist.return_value = {'artist': 'The Offspring', 'artist_id': 'confirmed'}
+    original = "The Offspring - Why Don't You Get A Job? (Official Music Video)"
+    _, info = pp.run({'title': original})
+    assert info['title'] == "Why Don't You Get A Job?"
+    assert info['_metube_source_title'] == original
+
+
+@pytest.mark.parametrize('title,expected', [
+    ('The Offspring - Song (Remix) (Official Video)', 'Song (Remix)'),
+    ('The Offspring - Song (Live)', 'Song (Live)'),
+    ('The Offspring - Song (Official Video) [4K UPGRADE]', 'Song'),
+    ('Another Artist - Song (Official Video)', 'Another Artist - Song')])
+def test_cleaning_preserves_versions_and_does_not_guess_artist(title, expected):
+    from nfo_metadata import song_filename_title
+    assert song_filename_title(title, 'The Offspring') == expected
+
+
+def test_generic_without_confirmed_artist_keeps_original_title(tmp_path):
+    pp = preprocessor(tmp_path)
+    original = 'Unknown - Song (Official Video)'
+    _, info = pp.run({'title': original})
+    assert info['title'] == original
+
+
+def test_structured_track_remains_authoritative(tmp_path):
+    pp = preprocessor(tmp_path)
+    _, info = pp.run({'title': 'Artist - Display title', 'artist': 'Artist', 'track': 'Official Video'})
+    assert info['title'] == 'Official Video'

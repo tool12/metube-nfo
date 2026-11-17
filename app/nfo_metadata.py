@@ -358,6 +358,23 @@ def make_nfo(info, video=None):
     return root
 
 
+def song_filename_title(value, artist):
+    """Strip only a confirmed artist prefix and explicit display-only suffixes."""
+    title = str(value or '').strip()
+    if not artist:
+        return title
+    parts = re.split(r'\s+[-–—]\s+', title, maxsplit=1)
+    if len(parts) == 2 and _normalized_name(parts[0]) == _normalized_name(artist):
+        title = parts[1].strip() or title
+    display = (r'\s*[\[(](?:official (?:music )?(?:video|audio|lyrics?(?: video)?)'
+               r'|(?:4k|hd) (?:upgrade|remaster(?:ed)?))[\])]\s*$')
+    while True:
+        cleaned = re.sub(display, '', title, flags=re.I).strip()
+        if not cleaned or cleaned == title:
+            return title
+        title = cleaned
+
+
 class NFOMetadataPreProcessor(PostProcessor):
     """Resolve credits before filename expansion; folders are created by yt-dlp."""
 
@@ -384,7 +401,8 @@ class NFOMetadataPreProcessor(PostProcessor):
             info['_metube_imvdb'] = video
         # A shared artist directory must not turn "Artist - Song" filenames
         # into Jellyfin's movie-version naming pattern. Prefer a verified song
-        # title or the extractor's structured track, never guessed title splits.
+        # title or structured track. Without those, strip only a prefix that
+        # matches the resolved artist; keep the original title as provenance.
         title = video.get('song_title') if video else info.get('track')
         if isinstance(title, str) and title.strip():
             info.setdefault('_metube_source_title', info.get('title'))
@@ -403,6 +421,11 @@ class NFOMetadataPreProcessor(PostProcessor):
                         artist = resolved['artist']
                 except Exception as error:
                     self.report_warning('MusicBrainz artist lookup unavailable (' + _failure_code(error) + ')')
+            if not isinstance(title, str) or not title.strip():
+                cleaned = song_filename_title(info.get('title'), artist)
+                if cleaned and cleaned != info.get('title'):
+                    info.setdefault('_metube_source_title', info.get('title'))
+                    info['title'] = cleaned
             # Preserve a useful default even if directory enumeration fails.
             name = self.sanitize(str(artist or 'Sin artista'))
             if self.allowed and not self.allowed((self.directory / name).resolve()):
