@@ -365,6 +365,7 @@ def test_explicit_thumbnail_template_is_preserved():
 @pytest.fixture(autouse=True)
 def disable_live_genre_network(monkeypatch):
     monkeypatch.setenv('NFO_GENRES_ENABLED', 'false')
+    monkeypatch.setenv('NFO_WIKIPEDIA_ENABLED', 'false')
 
 
 
@@ -431,3 +432,31 @@ def test_download_pipeline_connects_musicbrainz_artist_fallback(tmp_path, monkey
     info, _ = ydl.pre_process(dict(INFO, title='Alicia Keys - No One', ext='mp4'))
     assert info['metube_artist'] == 'Alicia Keys'
     assert info['_metube_musicbrainz']['artist'] == 'Alicia Keys'
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_description_is_independent_of_imvdb_and_genres(tmp_path, monkeypatch, failure):
+    media = tmp_path / 'song.mp4'
+    media.write_bytes(b'video')
+    pp = processor(tmp_path, monkeypatch, poster=False)
+    pp.provider.lookup = Mock(return_value=VIDEO)
+    description = {'text': 'Song history.', 'title': 'Song',
+                   'url': 'https://es.wikipedia.org/wiki/Song', 'language': 'es',
+                   'license_url': 'https://creativecommons.org/licenses/by-sa/4.0/',
+                   'revision_id': '123'}
+    pp.description_provider.lookup = Mock(return_value=description)
+    if failure:
+        pp.description_provider.lookup.side_effect = TimeoutError('private message')
+    monkeypatch.setenv('NFO_WIKIPEDIA_ENABLED', 'true')
+    pp.run(dict(INFO, filepath=str(media)))
+    root = ET.parse(media.with_suffix('.nfo'))
+    pp.description_provider.lookup.assert_called_once()
+    assert INFO['webpage_url'] in root.findtext('plot')
+    if not failure:
+        assert 'Song history.' in root.findtext('plot')
+        assert description['url'] in root.findtext('plot')
+        assert description['license_url'] in root.findtext('plot')
+        assert root.findtext('metube/description_revision_id') == '123'
+    else:
+        assert 'Song history.' not in root.findtext('plot')
+        assert 'private message' not in str(pp.report_warning.call_args_list)
