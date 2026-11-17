@@ -58,3 +58,24 @@ the configuration and test downloads until you have reviewed the result.
 This is a procedure, not evidence of an installation on a particular NAS.
 Sources: [TrueNAS Custom Apps](https://apps.truenas.com/managing-apps/installing-custom-apps/)
 and [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+### Named-group ACLs and container identity
+
+If an explicit UID/GID write probe succeeds but the application fails, compare
+`/proc/<pid>/status` supplementary groups with the dataset ACL. In the reported
+TrueNAS deployment, including the ACL group in the supplementary group list
+allowed writes while the same primary GID with an empty list failed. Configure
+Docker to start directly as the desired identity and retain that group:
+
+```yaml
+    user: "${METUBE_UID}:${METUBE_GID}"
+    group_add:
+      - "${METUBE_GID}"
+```
+
+Set the placeholders to the account/group granted access by the dataset ACL;
+they are installation-specific. Keep CHOWN_DIRS=false to preserve library
+ownership. The non-root entrypoint does not run gosu, so Docker's supplementary
+groups remain in effect. Internal nightly yt-dlp updates are disabled in this
+mode; update the container image instead. Do not clear the state directory to
+work around UI errors: it contains queue, history and metadata cache.

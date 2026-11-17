@@ -141,3 +141,16 @@ publication is not configured for this fork's initial TrueNAS deployment.
 Sources: [IMVDb API](https://imvdb.com/developers/api),
 [Kodi music-video NFOs](https://kodi.wiki/view/NFO_files/Music_videos),
 [upstream MeTube](https://github.com/alexta69/metube).
+
+## JPEG artwork and ACL storage
+
+With NFO artwork enabled, yt-dlp converts the downloaded thumbnail to real JPEG
+using FFmpeg before downloading the video. The NFO references a local
+`<video-stem>-poster.jpg`. An additional `<video-stem>.jpg` thumbnail may remain;
+existing user artwork is preserved. This applies to new downloads only.
+
+NFSv4 ACL storage can permit file creation while rejecting chmod. For EPERM,
+ENOTSUP or ENOSYS, NFO publication retains the inherited ACL/restricted temporary
+file permissions instead of discarding the complete XML. Other storage errors
+still stop NFO publication and leave the video intact. Diagnostic warnings report
+exception types and numeric codes, never exception messages or request headers.

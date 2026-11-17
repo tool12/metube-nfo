@@ -1,4 +1,5 @@
 """Sidecars must never corrupt a download or attach metadata to another video."""
+import errno
 from pathlib import Path
 from unittest.mock import Mock
 import xml.etree.ElementTree as ET
@@ -232,3 +233,76 @@ def test_public_requests_do_not_send_app_key():
     provider._get_html('/search', search_term='artist song')
     assert 'IMVDB-APP-KEY' not in provider._read.call_args.args[1]
 
+
+
+@pytest.mark.parametrize("number", [errno.EPERM, errno.ENOTSUP, errno.ENOSYS])
+def test_acl_rejecting_chmod_still_publishes_complete_nfo(tmp_path, monkeypatch, number):
+    import nfo_metadata
+    video = tmp_path / 'video.mp4'
+    video.write_bytes(b'video')
+    pp = processor(tmp_path, monkeypatch)
+    def reject_chmod(*args):
+        raise OSError(number, 'ACL disallows chmod')
+    monkeypatch.setattr(nfo_metadata.os, 'chmod', reject_chmod)
+    pp.run(dict(INFO, filepath=str(video)))
+    assert ET.parse(video.with_suffix('.nfo')).getroot().tag == 'musicvideo'
+    assert not list(tmp_path.glob('.nfo-*.tmp'))
+
+
+def test_diagnostics_do_not_expose_error_messages():
+    from nfo_metadata import _failure_code
+    from urllib.error import HTTPError
+    error = HTTPError('https://private.invalid/secret', 403, 'private-test-key', {}, None)
+    assert _failure_code(error).startswith('HTTPError HTTP 403')
+    assert 'private' not in _failure_code(error)
+
+
+def test_acl_fallback_does_not_hide_storage_failure(tmp_path, monkeypatch):
+    import nfo_metadata
+    video = tmp_path / 'video.mp4'
+    video.write_bytes(b'video')
+    pp = processor(tmp_path, monkeypatch)
+    def failed_chmod(*args):
+        raise OSError(5, 'storage failure')
+    monkeypatch.setattr(nfo_metadata.os, 'chmod', failed_chmod)
+    pp.run(dict(INFO, filepath=str(video)))
+    assert not video.with_suffix('.nfo').exists()
+    assert not list(tmp_path.glob('.nfo-*.tmp'))
+    assert any('errno 5' in str(call) for call in pp.report_warning.call_args_list)
+
+
+def test_poster_conversion_runs_in_ytdlp_before_download(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from ytdl import Download
+    download = Download.__new__(Download)
+    download.info = SimpleNamespace(download_type='video', nfo_profile='jellyfin',
+                                    nfo_poster=True, nfo_imvdb_id='')
+    download.download_dir = str(tmp_path)
+    download.temp_dir = str(tmp_path)
+    download.state_dir = None
+    download.artist_folders = False
+    ydl = download._make_youtube_dl({'quiet': True})
+    thumb = tmp_path / 'video.webp'
+    thumb.write_bytes(b'input-placeholder')
+    converter = next(pp for pp in ydl._pps['before_dl']
+                     if pp.__class__.__name__ == 'FFmpegThumbnailsConvertorPP')
+    # Verify yt-dlp's real conversion stage updates both thumbnail and move map.
+    def convert(source, target):
+        assert target == 'jpg'
+        output = str(Path(source).with_suffix('.jpg'))
+        Path(output).write_bytes(b'jpeg-test-output')
+        return output
+    monkeypatch.setattr(converter, 'convert_thumbnail', convert)
+    info = dict(INFO, thumbnails=[{'filepath': str(thumb)}],
+                __files_to_move={str(thumb): str(thumb)})
+    files_to_delete, info = converter.run(info)
+    assert str(thumb) in files_to_delete
+    assert info['thumbnails'][0]['filepath'].endswith('.jpg')
+    video = tmp_path / 'video.mp4'
+    video.write_bytes(b'video')
+    post = next(pp for pp in ydl._pps['after_move'] if isinstance(pp, NFOPostProcessor))
+    post.provider.lookup = Mock(return_value=None)
+    post.run(dict(info, filepath=str(video)))
+    root = ET.parse(video.with_suffix('.nfo')).getroot()
+    assert root.findtext('thumb') == 'video-poster.jpg'
+    assert (tmp_path / 'video-poster.jpg').read_bytes() == b'jpeg-test-output'
