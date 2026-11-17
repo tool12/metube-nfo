@@ -38,14 +38,15 @@ downloads/
   Metallica/
     Enter Sandman.mp4
     Enter Sandman.nfo
-    Enter Sandman-poster.webp
+    Enter Sandman-poster.jpg
 ```
 
-The artwork comes from yt-dlp's downloaded thumbnail and keeps its actual file
-extension. It is not cropped into a vertical poster. The original thumbnail may
-also remain next to the video. Existing NFOs and artwork are preserved. NFOs are
+The artwork comes from yt-dlp's downloaded thumbnail, converted to real JPEG.
+It is not cropped into a vertical poster. By default the thumbnail is saved
+straight to the final poster name, so only one JPEG is generated. Existing
+NFOs/artwork and explicit user thumbnail templates are preserved. NFOs are
 published as complete files rather than partial writes. File read/write mode
-follows the video file's mode.
+follows the video when supported; ACL storage can retain inherited permissions.
 
 ## IMVDb
 
@@ -80,14 +81,14 @@ IMVDb also announced retirement of V1 during 2027. The provider lives in
 
 Network failures, a missing key, no matching recording or ambiguous candidates
 keep the download usable. A selected NFO profile produces a generic NFO using
-available original title, description, duration, ID, tags and source URL.
+available original title, structured artist, duration, ID and source URL.
+YouTube descriptions and tags are omitted.
 
 A verified recording uses `musicvideo` XML and can add artist, director, year and
 a full premiere date. Generic fallback keeps the `musicvideo` root so it fits
 the same music-video library. Structured original artist fields are retained
 when available. Missing fields are omitted.
-YouTube's upload date is labelled separately; it never becomes an invented
-original premiere. An IMVDb year alone never becomes January 1st of that year.
+YouTube's upload date is not used as the original premiere. An IMVDb year alone never becomes January 1st of that year.
 
 The original YouTube ID and URL remain in the NFO. IMVDb's ID, page and YouTube
 links are also recorded, with catalog links explicitly labelled as references.
