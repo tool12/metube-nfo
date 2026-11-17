@@ -71,10 +71,10 @@ def main(argv=None):
         if args.apply_plan.resolve() == report_path:
             parser.error('Apply report must differ from the reviewed preview')
         plan = json.loads(args.apply_plan.read_text(encoding='utf-8-sig'))
-        if plan.get('schema') != 1 or plan.get('operation') != 'preview':
+        if plan.get('schema') != 1 or plan.get('operation') != 'preview' or not plan.get('complete'):
             parser.error('Unsupported preview schema')
         # No provider construction or credentials are needed on this path.
-        result = {'schema': 1, 'operation': 'apply', 'root': str(root), 'results': rows}
+        result = {'schema': 1, 'complete': False, 'operation': 'apply', 'root': str(root), 'results': rows}
         write_report(report_path, result)
         for entry in plan['results']:
             if entry.get('status') != 'proposed':
@@ -93,7 +93,7 @@ def main(argv=None):
         if any(not folder.resolve(strict=True).is_relative_to(root) for folder in folders):
             parser.error('Artist folders must be inside the library')
         provider, genres, description = providers(cache)
-        result = {'schema': 1, 'operation': 'preview', 'mode': args.mode, 'root': str(root), 'results': rows}
+        result = {'schema': 1, 'complete': False, 'operation': 'preview', 'mode': args.mode, 'root': str(root), 'results': rows}
         write_report(report_path, result)
         visited = set()
         for folder in folders:
@@ -120,6 +120,7 @@ def main(argv=None):
                 break
     summary = dict(Counter(row['status'] for row in rows))
     result['summary'] = summary
+    result['complete'] = True
     write_report(report_path, result)
     print(json.dumps({'report': str(report_path), 'processed': len(rows), 'summary': summary}, ensure_ascii=True))
     return 1 if any(row['status'] in ('error', 'provider_error') for row in rows) else 0

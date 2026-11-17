@@ -268,3 +268,17 @@ def test_missing_mode_normalizes_legacy_root_for_reviewed_apply(tmp_path):
     assert ET.fromstring(payload).tag == 'musicvideo'
     assert ET.fromstring(payload).findtext('custom') == 'Keep'
     assert apply_reviewed_entry(report, tmp_path)['status'] == 'applied'
+
+
+def test_cli_refuses_unfinished_preview(tmp_path):
+    import importlib.util
+    import json
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location('regularize_nfo_cli', Path(__file__).resolve().parents[2] / 'tools' / 'regularize_nfo.py')
+    cli = importlib.util.module_from_spec(spec); spec.loader.exec_module(cli)
+    library = tmp_path / 'library'; library.mkdir()
+    preview = tmp_path / 'unfinished.json'
+    preview.write_text(json.dumps({'schema': 1, 'operation': 'preview', 'complete': False, 'results': []}))
+    with pytest.raises(SystemExit):
+        cli.main([str(library), '--apply-plan', str(preview), '--report', str(tmp_path / 'applied.json')])
+    assert not (tmp_path / 'applied.json').exists()
