@@ -43,7 +43,7 @@ def test_verified_video_has_original_year_and_credits():
     assert root.find('premiered') is None
     assert root.find("uniqueid[@type='imvdb']").text == '123'
     assert root.findtext('metube/youtube_reference') == INFO['webpage_url']
-    assert root.findall('tag') == []
+    assert [n.text for n in root.findall('tag')] == ['Artista: Metallica']
 
 
 def test_full_premiere_date_is_used_only_when_supplied():
@@ -317,7 +317,7 @@ def test_promotional_content_is_omitted_but_provenance_preserved(verified):
                 _metube_source_title='Original display title')
     root = make_nfo(info, dict(VIDEO, url='https://imvdb.com/video/metallica/enter-sandman') if verified else None)
     assert root.findtext('plot') == 'YouTube: ' + INFO['webpage_url']
-    assert root.findall('tag') == []
+    assert [n.text for n in root.findall('tag')] == (['Artista: Metallica'] if verified else [])
     assert root.findtext('metube/source_url') == INFO['webpage_url']
     assert root.findtext('metube/source_title') == 'Original display title'
     assert root.find("uniqueid[@type='youtube']").text == INFO['id']
@@ -387,7 +387,7 @@ def test_studio_cast_youtube_summary_and_song_genre_are_written():
     assert root.findtext('genre') == 'Pop'
     assert root.findtext('metube/genre_provider') == 'apple_itunes'
     assert root.findtext('imvdbid') == '123'
-    assert root.findall('tag') == []
+    assert [n.text for n in root.findall('tag')] == ['Artista: Metallica']
 
 
 def test_genre_failure_never_prevents_nfo(tmp_path, monkeypatch):
@@ -483,3 +483,13 @@ def test_decomposed_youtube_artist_finds_verified_imvdb_video(api_search):
     assert provider.lookup(info) == video
     video['sources'] = []
     assert provider.lookup(info) is None
+
+
+@pytest.mark.parametrize('verified', [False, True])
+def test_artist_filter_tags_preserve_artists_and_deduplicate(verified):
+    info = dict(INFO, artists=['Linkin Park', 'linkin park', 'Guest & Artist'])
+    video = dict(VIDEO, artists=[{'name': name} for name in info['artists']]) if verified else None
+    root = make_nfo(info, video)
+    assert [n.text for n in root.findall('artist')] == info['artists']
+    assert [n.text for n in root.findall('tag')] == ['Artista: Linkin Park', 'Artista: Guest & Artist']
+    assert 'Original <description>' not in root.findtext('plot')

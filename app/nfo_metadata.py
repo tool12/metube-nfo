@@ -346,6 +346,14 @@ def make_nfo(info, video=None):
             add('imvdb_url', video['url'], provenance)
         for source_id in youtube_reference_ids(video):
             add('youtube_reference', 'https://www.youtube.com/watch?v=' + source_id, provenance)
+    # Keep artist metadata and add a player-visible filtering label separately.
+    seen_artists = set()
+    for element in root.findall('artist'):
+        name = str(element.text or '').strip()
+        key = _normalized_name(name)
+        if key and key not in seen_artists:
+            add('tag', 'Artista: ' + name)
+            seen_artists.add(key)
     ET.indent(root)
     return root
 
