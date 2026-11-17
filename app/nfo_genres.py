@@ -95,7 +95,7 @@ class SongGenres:
         artist = str(artist or '').strip()
         if not artist or not title:
             return None
-        key = hashlib.sha256((normalized(artist) + ':' + normalized(title)).encode()).hexdigest()
+        key = hashlib.sha256(('multi-genre-v2:' + normalized(artist) + ':' + normalized(title)).encode()).hexdigest()
         cache = self.cache_dir / (key + '.json') if self.cache_dir else None
         if cache:
             try:
@@ -115,14 +115,24 @@ class SongGenres:
         # Prefer the unqualified base song over a remix/live/edit entry.
         plain = [item for item in candidates if normalized(item.get('trackName')) == normalized(title)]
         selected = plain or candidates
-        genres = {str(item.get('primaryGenreName') or '').strip() for item in selected}
-        genres.discard('')
+        # Editions can legitimately classify the same song differently. Keep
+        # up to three distinct genres, ordered by frequency then name.
+        counts = {}
+        names = {}
+        for item in selected:
+            name = str(item.get('primaryGenreName') or '').strip()
+            if name:
+                key_name = name.casefold()
+                counts[key_name] = counts.get(key_name, 0) + 1
+                names.setdefault(key_name, name)
+        ranked = sorted(counts, key=lambda name: (-counts[name], name))[:3]
         value = None
-        if len(genres) == 1:
-            genre = next(iter(genres))
-            item = next(item for item in selected if item.get('primaryGenreName') == genre)
-            value = {'genres': [genre], 'provider': 'apple_itunes',
-                     'catalog_id': str(item['trackId']),
+        if ranked:
+            contributing = [item for item in selected
+                            if str(item.get('primaryGenreName') or '').strip().casefold() in ranked]
+            catalog_ids = list(dict.fromkeys(str(item['trackId']) for item in contributing))
+            value = {'genres': [names[name] for name in ranked], 'provider': 'apple_itunes',
+                     'catalog_id': catalog_ids[0], 'catalog_ids': catalog_ids,
                      'match_basis': 'artist_and_base_song_title; version_not_verified'}
         if cache:
             temporary = None

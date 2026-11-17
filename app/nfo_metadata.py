@@ -280,7 +280,8 @@ def make_nfo(info, video=None):
         add('genre', genre)
     if genre_result.get('catalog_id'):
         add('genre_provider', genre_result.get('provider'), provenance)
-        add('genre_catalog_id', genre_result['catalog_id'], provenance)
+        for catalog_id in genre_result.get('catalog_ids') or [genre_result['catalog_id']]:
+            add('genre_catalog_id', catalog_id, provenance)
         add('genre_match_basis', genre_result.get('match_basis'), provenance)
     if video:
         year = str(video.get('year') or '')

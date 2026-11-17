@@ -181,8 +181,8 @@ provider unique ID for NFO readers supporting provider-specific elements.
 Genre uses the public Apple iTunes Search API, matching structured artist and
 base song title, ignoring bracketed remix/live/edit/official/featured-credit
 qualifiers. An unqualified base-song entry is preferred. This genre does not
-claim to describe the exact video/remix. Disagreeing candidate genres are left
-empty. No artist-only guessing. No artwork, previews or audio are taken from
+claim to describe the exact video/remix. Up to three distinct genres are retained across matching editions, ordered by
+frequency and then name; repeated names are deduplicated case-insensitively. No artist-only guessing. No artwork, previews or audio are taken from
 Apple. Provenance is stored inside `metube`.
 
 No additional API key is required. Requests are serialized across download
@@ -193,3 +193,8 @@ Existing NFO files remain untouched. Test new downloads after image updates.
 
 References: https://performance-partners.apple.com/search-api and
 https://jellyfin.org/docs/general/server/metadata/nfo/ .
+
+The multi-genre cache uses a new namespace, so an empty result saved by the
+previous strict-consensus rule cannot hide newly accepted genres. Old cache
+files and existing NFO are preserved; no state-directory cleanup is required.
+Genre provenance retains all contributing catalog track IDs.
