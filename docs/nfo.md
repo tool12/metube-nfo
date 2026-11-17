@@ -283,3 +283,22 @@ within the existing lookup deadline; authentication/rate-limit errors are not
 retried. Song, group, genre, Wikipedia-link and description caches use a new
 namespace so old negative matches do not hide these improvements. Old cache
 files and all existing media/NFO are preserved. No new configuration is needed.
+
+
+## Song-only filenames when IMVDb has no match
+
+Artist folders keep the resolved artist name, while files use the song title.
+Verified IMVDb song titles and structured extractor track names remain first
+choice. If neither exists, a title prefix is removed only when it matches the
+artist already resolved from extractor metadata or MusicBrainz. ASCII/en/em
+dash separators are supported; arbitrary artist names are never guessed from
+an unconfirmed title. Explicit Official Music Video/Official Video/Official
+Audio/lyrics and HD/4K upgrade suffixes are stripped from fallback display
+names, while remix/live and other version qualifiers are retained. Original
+YouTube titles remain in metube/source_title; YouTube IDs do not change.
+
+This prevents Artist/Artist - Song files from matching Jellyfin's automatic
+version-grouping pattern. It affects future downloads only; existing files
+need a separately reviewed rename of video, matching NFO and poster, followed
+by a Jellyfin rescan. Custom output templates that add the artist prefix again
+can still recreate the grouping pattern.
