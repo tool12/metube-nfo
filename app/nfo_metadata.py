@@ -249,8 +249,9 @@ class IMVDbProvider:
         return video
 
 
-def make_nfo(info, video=None):
+def make_nfo(info, video=None, *, language="es"):
     """Music-video sidecar, with generic source fields when identification fails."""
+    language = language if language in ('es', 'en') else 'es'
     root = ET.Element('musicvideo')
 
     def add(name, value, parent=None):
@@ -275,6 +276,7 @@ def make_nfo(info, video=None):
     # Provenance is deliberately separate from player-visible plot/tags.
     provenance = ET.SubElement(root, 'metube')
     add('metadata_source', 'imvdb' if video else 'original', provenance)
+    add('nfo_language', language, provenance)
     source_url = info.get('webpage_url')
     if not source_url and str(info.get('extractor_key', '')).lower() == 'youtube' and identifier:
         source_url = 'https://www.youtube.com/watch?v=' + str(identifier)
@@ -289,7 +291,8 @@ def make_nfo(info, video=None):
     if description.get('text'):
         plot.extend([description['text'],
                      'Wikipedia — ' + str(description.get('title') or '') + ': ' + str(description.get('url') or ''),
-                     'Extracto de los colaboradores de Wikipedia (puede estar abreviado). Licencia: '
+                     ('Extracto de los colaboradores de Wikipedia (puede estar abreviado). Licencia: '
+                      if language == 'es' else 'Excerpt by Wikipedia contributors (may be shortened). License: ')
                      + str(description.get('license_url') or '')])
         for key in ('url', 'language', 'revision_id', 'license_url', 'musicbrainz_entity', 'musicbrainz_id'):
             add('description_' + key, description.get(key), provenance)
@@ -352,7 +355,7 @@ def make_nfo(info, video=None):
         name = str(element.text or '').strip()
         key = _normalized_name(name)
         if key and key not in seen_artists:
-            add('tag', 'Artista: ' + name)
+            add('tag', ('Artista: ' if language == 'es' else 'Artist: ') + name)
             seen_artists.add(key)
     ET.indent(root)
     return root
@@ -451,7 +454,7 @@ class NFOMetadataPreProcessor(PostProcessor):
 
 
 class NFOPostProcessor(PostProcessor):
-    def __init__(self, downloader, *, roots, profile, poster, within, state_dir=None, imvdb_id=''):
+    def __init__(self, downloader, *, roots, profile, poster, within, state_dir=None, imvdb_id='', language=None):
         super().__init__(downloader)
         self.roots = roots
         self.profile = profile
@@ -464,6 +467,8 @@ class NFOPostProcessor(PostProcessor):
             search_enabled=os.getenv('IMVDB_SEARCH_ENABLED', 'false').lower() in ('true', '1', 'on'),
             web_search_enabled=os.getenv('IMVDB_WEB_SEARCH_ENABLED', 'true').lower() in ('true', '1', 'on'))
         self.state_dir = Path(state_dir).resolve() if state_dir else None
+        selected_language = language or os.getenv('NFO_WIKIPEDIA_LANGUAGE', 'es')
+        self.language = selected_language if selected_language in ('es', 'en') else 'es'
         self.musicbrainz_enabled = os.getenv('MUSICBRAINZ_ENABLED', 'true').lower() in ('true', '1', 'on')
         self.musicbrainz = MusicBrainzSongs(
             self.state_dir / 'musicbrainz-songs' if self.state_dir else None)
@@ -472,7 +477,7 @@ class NFOPostProcessor(PostProcessor):
             enabled=self.musicbrainz_enabled)
         self.description_provider = SongDescription(
             self.musicbrainz, self.state_dir / 'wikipedia-descriptions' if self.state_dir else None,
-            language=os.getenv('NFO_WIKIPEDIA_LANGUAGE', 'es'))
+            language=self.language)
 
     def _safe(self, path):
         if (self.state_dir and self.within(str(self.state_dir), str(path))
@@ -520,7 +525,7 @@ class NFOPostProcessor(PostProcessor):
                         info['_metube_description'] = self.description_provider.lookup(artist, title)
                     except Exception as error:
                         self.report_warning('Song description unavailable; omitting description (' + _failure_code(error) + ')')
-            root = make_nfo(info, video)
+            root = make_nfo(info, video, language=self.language)
             if self.poster:
                 try:
                     for thumb in reversed(info.get('thumbnails') or []):

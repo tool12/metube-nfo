@@ -13,6 +13,7 @@ export interface Download {
   split_by_chapters?: boolean;
   nfo_imvdb_id?: string;
   nfo_profile?: string;
+  nfo_language?: string;
   nfo_poster?: boolean;
   sponsorblock?: boolean;
   audio_tags?: string;

@@ -573,6 +573,7 @@ _DOWNLOAD_INFO_DEFAULTS: dict[str, Any] = {
     "playlist_item_limit": 0,
     "nfo_imvdb_id": "",
     "nfo_profile": "none",
+    "nfo_language": "es",
     "nfo_poster": True,
     "split_by_chapters": False,
     "sponsorblock": False,
@@ -629,6 +630,7 @@ class DownloadInfo:
         video_password=None,
         nfo_imvdb_id="",
         nfo_profile="none",
+        nfo_language="es",
         nfo_poster=True,
     ):
         self.id = id if len(custom_name_prefix) == 0 else f'{custom_name_prefix}.{id}'
@@ -657,6 +659,7 @@ class DownloadInfo:
         self.split_by_chapters = split_by_chapters
         self.nfo_imvdb_id = nfo_imvdb_id
         self.nfo_profile = nfo_profile
+        self.nfo_language = nfo_language
         self.nfo_poster = nfo_poster
         self.sponsorblock = sponsorblock
         self.audio_tags = audio_tags
@@ -755,6 +758,7 @@ _PERSISTED_DOWNLOAD_FIELDS = (
     "playlist_item_limit",
     "nfo_imvdb_id",
     "nfo_profile",
+    "nfo_language",
     "nfo_poster",
     "split_by_chapters",
     "sponsorblock",
@@ -1001,6 +1005,7 @@ class Download:
             nfo = NFOPostProcessor(
                 ydl, roots=(self.download_dir,), profile=self.info.nfo_profile,
                 poster=self.info.nfo_poster, within=_is_within_directory,
+                language=getattr(self.info, "nfo_language", "es"),
                 imvdb_id=self.info.nfo_imvdb_id,
                 state_dir=self.state_dir,
             )

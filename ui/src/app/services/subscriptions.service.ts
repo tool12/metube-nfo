@@ -93,6 +93,7 @@ export class SubscriptionsService {
       auto_start: payload.autoStart,
       split_by_chapters: payload.splitByChapters,
       nfo_profile: payload.downloadType === 'video' ? (payload.nfoProfile ?? 'none') : 'none',
+      nfo_language: payload.nfoLanguage ?? 'es',
       nfo_poster: payload.nfoPoster ?? true,
       sponsorblock: payload.sponsorblock,
       audio_tags: payload.audioTags,

@@ -56,8 +56,11 @@ CATALOG: dict = {
         {
             'id': 'video',
             'nfo_profile': _choice('none', _options(
-                ('none', 'No generar'), ('kodi', 'Kodi'),
+                ('none', 'No generar / Do not generate'), ('kodi', 'Kodi'),
                 ('jellyfin', 'Jellyfin'), ('emby', 'Emby'),
+            )),
+            'nfo_language': _choice('es', _options(
+                ('es', 'Español / Spanish'), ('en', 'Inglés / English'),
             )),
             'text': 'Video',
             'codec': _choice('auto', _options(

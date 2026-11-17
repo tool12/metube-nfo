@@ -25,6 +25,7 @@ export interface AddDownloadPayload {
   splitByChapters: boolean;
   nfoImvdbId?: string;
   nfoProfile?: string;
+  nfoLanguage?: string;
   nfoPoster?: boolean;
   sponsorblock: boolean;
   audioTags: string;
@@ -188,6 +189,7 @@ export class DownloadsService {
       auto_start: payload.autoStart,
       split_by_chapters: payload.splitByChapters,
       nfo_profile: payload.downloadType === 'video' ? (payload.nfoProfile ?? 'none') : 'none',
+      nfo_language: payload.nfoLanguage ?? 'es',
       nfo_poster: payload.nfoPoster ?? true,
       nfo_imvdb_id: payload.downloadType === 'video' ? (payload.nfoImvdbId ?? '') : '',
       sponsorblock: payload.sponsorblock,

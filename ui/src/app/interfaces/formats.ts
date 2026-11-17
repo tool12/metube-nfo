@@ -25,6 +25,7 @@ export interface DownloadTypeOption extends Option {
   format: Choice<FormatOption>;
   codec?: Choice;
   nfo_profile?: Choice;
+  nfo_language?: Choice;
   audio_tags?: Choice;
   subtitle_mode?: Choice;
   // Suggestions; any language tag is accepted.
