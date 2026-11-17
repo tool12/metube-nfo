@@ -27,7 +27,9 @@ def test_generic_does_not_mislabel_upload_as_premiere():
     assert root.tag == 'musicvideo'
     assert root.find('premiered') is None
     assert root.find('year') is None
-    assert root.findtext('plot') == INFO['description']
+    assert root.find('plot') is None
+    assert root.findall('tag') == []
+    assert root.findtext('metube/source_url') == INFO['webpage_url']
     assert root.findtext('uniqueid') == INFO['id']
     ET.fromstring(ET.tostring(root))
 
@@ -40,8 +42,8 @@ def test_verified_video_has_original_year_and_credits():
     assert root.findtext('artist') == 'Metallica'
     assert root.find('premiered') is None
     assert root.find("uniqueid[@type='imvdb']").text == '123'
-    assert 'YouTube reference from IMVDb: https://www.youtube.com/watch?v=CD-E-LDc384' in [
-        tag.text for tag in root.findall('tag')]
+    assert root.findtext('metube/youtube_reference') == INFO['webpage_url']
+    assert root.findall('tag') == []
 
 
 def test_full_premiere_date_is_used_only_when_supplied():
@@ -306,3 +308,55 @@ def test_poster_conversion_runs_in_ytdlp_before_download(tmp_path, monkeypatch):
     root = ET.parse(video.with_suffix('.nfo')).getroot()
     assert root.findtext('thumb') == 'video-poster.jpg'
     assert (tmp_path / 'video-poster.jpg').read_bytes() == b'jpeg-test-output'
+
+
+@pytest.mark.parametrize('verified', [False, True])
+def test_promotional_content_is_omitted_but_provenance_preserved(verified):
+    info = dict(INFO, description='Subscribe! Buy merchandise! Lyrics!',
+                tags=['spam', 'other songs'], channel='Channel', upload_date='20260101',
+                _metube_source_title='Original display title')
+    root = make_nfo(info, dict(VIDEO, url='https://imvdb.com/video/metallica/enter-sandman') if verified else None)
+    assert root.find('plot') is None
+    assert root.findall('tag') == []
+    assert root.findtext('metube/source_url') == INFO['webpage_url']
+    assert root.findtext('metube/source_title') == 'Original display title'
+    assert root.find("uniqueid[@type='youtube']").text == INFO['id']
+    if verified:
+        assert root.findtext('metube/imvdb_url') == 'https://imvdb.com/video/metallica/enter-sandman'
+        assert root.findtext('director') == 'Wayne Isham'
+    assert 'Subscribe!' not in ET.tostring(root, encoding='unicode')
+
+
+def test_final_poster_template_produces_one_jpeg_in_real_pipeline(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from ytdl import Download, _ConfinedYoutubeDL
+    download = Download.__new__(Download)
+    download.info = SimpleNamespace(download_type='video', nfo_profile='jellyfin', nfo_poster=True)
+    download.ytdl_opts = {}
+    params = {'quiet': True, 'paths': {'home': str(tmp_path)},
+              'outtmpl': {'default': '%(metube_artist)s/%(title)s.%(ext)s'}}
+    download._set_nfo_thumbnail_template(params)
+    ydl = _ConfinedYoutubeDL(params, allowed_roots=(tmp_path,))
+    info = dict(INFO, metube_artist='Artist', title='Song', ext='mp4')
+    video = Path(ydl.prepare_filename(info))
+    thumb = Path(ydl.prepare_filename(dict(info, ext='jpg'), 'thumbnail'))
+    video.parent.mkdir()
+    video.write_bytes(b'video')
+    thumb.write_bytes(b'jpeg-output')
+    post = processor(tmp_path, monkeypatch)
+    post.provider.lookup = Mock(return_value=None)
+    ydl.add_post_processor(post, when='after_move')
+    ydl.post_process(str(video), dict(info, thumbnails=[{'filepath': str(thumb), 'url': 'https://example.com/thumb.jpg'}]))
+    assert [p.name for p in video.parent.glob('*.jpg')] == ['Song-poster.jpg']
+    assert ET.parse(video.with_suffix('.nfo')).findtext('thumb') == 'Song-poster.jpg'
+
+
+def test_explicit_thumbnail_template_is_preserved():
+    from types import SimpleNamespace
+    from ytdl import Download
+    download = Download.__new__(Download)
+    download.info = SimpleNamespace(download_type='video', nfo_profile='kodi', nfo_poster=True)
+    download.ytdl_opts = {'outtmpl': {'thumbnail': 'user-cover.%(ext)s'}}
+    params = {'outtmpl': {'default': '%(title)s.%(ext)s', 'thumbnail': 'user-cover.%(ext)s'}}
+    download._set_nfo_thumbnail_template(params)
+    assert params['outtmpl']['thumbnail'] == 'user-cover.%(ext)s'
