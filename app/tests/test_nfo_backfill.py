@@ -256,3 +256,15 @@ def test_apply_retains_inherited_acl_if_chmod_not_supported(tmp_path, monkeypatc
     monkeypatch.setattr('nfo_backfill.os.chmod', Mock(side_effect=PermissionError(errno.EPERM, 'ACL')))
     assert apply_reviewed_entry(report, tmp_path)['status'] == 'applied'
     assert media.with_suffix('.nfo').read_bytes() == payload
+
+
+def test_missing_mode_normalizes_legacy_root_for_reviewed_apply(tmp_path):
+    media, provider = current_fixture(tmp_path)
+    target = media.with_suffix('.nfo')
+    target.write_text('<movie><title>Song</title><artist>Artist</artist><custom>Keep</custom></movie>')
+    provider.find_by_artist_title.return_value = provider.lookup.return_value
+    _, payload, report = plan_current_nfo(media, provider, mode='missing', library_root=tmp_path)
+    report['relative_video'] = 'Artist/Song.mp4'
+    assert ET.fromstring(payload).tag == 'musicvideo'
+    assert ET.fromstring(payload).findtext('custom') == 'Keep'
+    assert apply_reviewed_entry(report, tmp_path)['status'] == 'applied'

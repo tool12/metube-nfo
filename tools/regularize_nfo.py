@@ -27,6 +27,8 @@ def providers(cache):
             if separator and name in ('IMVDB_APP_KEY', 'IMVDB_SEARCH_ENABLED', 'IMVDB_WEB_SEARCH_ENABLED'):
                 os.environ.setdefault(name, value.strip().strip('"').strip("'"))
     key = os.getenv('IMVDB_APP_KEY', '')
+    if not key.strip():
+        raise ValueError('Set IMVDB_APP_KEY before generating a library preview')
     mb = MusicBrainzSongs(cache / 'musicbrainz-songs')
     return (IMVDbProvider(key, cache / 'imvdb-cache',
                          search_enabled=enabled('IMVDB_SEARCH_ENABLED') if 'IMVDB_SEARCH_ENABLED' in os.environ else False,

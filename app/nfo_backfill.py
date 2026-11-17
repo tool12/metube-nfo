@@ -215,6 +215,7 @@ def plan_current_nfo(video_path, provider, *, genres=None, description=None,
             break
     if mode == 'missing':
         proposed = merge_missing(existing, proposed)
+        proposed.tag = 'musicvideo'
     elif mode != 'refresh':
         raise ValueError('Unsupported regularization mode')
     ET.indent(proposed)
