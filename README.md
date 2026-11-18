@@ -2,7 +2,27 @@
 
 ![Build Status](https://github.com/tool12/metube-nfo/actions/workflows/nfo.yml/badge.svg)
 
-Fork of [MeTube](https://github.com/alexta69/metube) with automatic NFO metadata and cover artwork generation, powered by IMVDb with fallback to original video metadata. Video downloads are organized by artist. See the [NFO guide](https://github.com/tool12/metube-nfo/blob/master/docs/nfo.md) and [TrueNAS installation](https://github.com/tool12/metube-nfo/blob/master/docs/truenas.md).
+Download music videos with artist folders, NFO metadata and JPG covers for Jellyfin, Kodi and Emby. Based on [MeTube](https://github.com/alexta69/metube).
+
+![MeTube NFO interface showing Jellyfin metadata, Spanish/English NFO language selection, JPG cover and optional IMVDb identification](https://raw.githubusercontent.com/tool12/metube-nfo/master/docs/images/metube-nfo-ui.jpg)
+
+*NFO controls from revision `7e4cf8131c4f39f16416ae160a368ed1899eb34b`. NFO generation defaults to disabled; its language defaults to Spanish.*
+
+## What this fork adds
+
+* **NFO profiles:** choose Jellyfin, Kodi or Emby from the video form. Profiles currently use a shared music-video XML subset.
+* **Verified video metadata:** IMVDb matches are checked against the YouTube video reference. Unmatched videos receive a generic NFO with source references, without borrowing another video's credits.
+* **Artist folders:** reuse or create the artist directory and use the song title for the filename. MusicBrainz can help identify the artist when the primary sources lack it.
+* **Genres and song descriptions:** MusicBrainz genres with Apple catalog fallback; Wikipedia introductions reached through MusicBrainz relationships, with attribution and the YouTube link.
+* **Spanish or English:** remembered NFO language selection and Spanish-first bilingual NFO controls. Missing Wikipedia articles fall back to the other language; names and catalog genres are not automatically translated.
+* **Local artwork:** optional `-poster.jpg` cover alongside the video and NFO.
+* **Existing-library tooling:** preview-first NFO regeneration with reviewed apply plans and backups. Downloads preserve existing NFO files.
+
+Metadata is best-effort: availability varies by provider and a metadata failure does not discard a successful video download. IMVDb requires your own API key; never commit it to the repository.
+
+Read the [NFO and artist-folder guide](https://github.com/tool12/metube-nfo/blob/master/docs/nfo.md), [TrueNAS installation guide](https://github.com/tool12/metube-nfo/blob/master/docs/truenas.md) and [existing-library regeneration instructions](https://github.com/tool12/metube-nfo/blob/master/docs/nfo.md#existing-library-preview-review-and-apply).
+
+## MeTube features
 
 MeTube is a self-hosted web UI for [yt-dlp](https://github.com/yt-dlp/yt-dlp). Paste a link from YouTube or [hundreds of other sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), and it downloads to your server:
 
@@ -11,8 +31,6 @@ MeTube is a self-hosted web UI for [yt-dlp](https://github.com/yt-dlp/yt-dlp). P
 * Per-download choices of quality, format and folder, plus server-wide [yt-dlp options and presets](https://github.com/alexta69/metube/wiki/yt-dlp-options).
 
 📖 **Guides, recipes and a troubleshooting FAQ live in the [wiki](https://github.com/alexta69/metube/wiki)** — many feature requests are already a recipe there, so check it before filing one.
-
-![screenshot1](https://github.com/alexta69/metube/raw/master/screenshot.gif?v=2)
 
 ## Quick start
 
